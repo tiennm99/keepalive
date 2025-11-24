@@ -1,9 +1,11 @@
 package main
 
 import (
-	"fmt"
+	"context"
 	"log"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/couchbase/gocb/v2"
@@ -82,37 +84,46 @@ func main() {
 
 	col := bucket.Scope(scopeName).Collection(collectionName)
 
-	// Create and store a Document
-	type User struct {
-		Name      string   `json:"name"`
-		Email     string   `json:"email"`
-		Interests []string `json:"interests"`
-	}
+	ctx, cancel := context.WithCancel(context.Background())
 
-	upsertOptions := gocb.UpsertOptions{
-		Expiry: 60 * time.Second,
-	}
+	go func() {
+		ticker := time.NewTicker(time.Minute)
+		defer ticker.Stop()
 
-	_, err = col.Upsert("u:jade",
-		User{
-			Name:      "Jade",
-			Email:     "jade@test-email.com",
-			Interests: []string{"Swimming", "Rowing"},
-		}, &upsertOptions)
+		for {
+			select {
+			case <-ticker.C:
+				if err := incrementCounter(col); err != nil {
+					log.Printf("Keepalive increment error: %v", err)
+				}
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	defer func() {
+		cancel()
+		if err := cluster.Close(nil); err != nil {
+			log.Printf("Error closing cluster: %v", err)
+		}
+	}()
+
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	<-sigCh
+}
+
+func incrementCounter(col *gocb.Collection) error {
+	counterDocId := "counter"
+	// Increment by 1, creating doc if needed.
+	// By using `Initial: 1` we set the starting count(non-negative) to 1 if the document needs to be created.
+	// If it already exists, the count will increase by the amount provided in the Delta option(i.e 1).
+	increment, err := col.Binary().Increment(counterDocId, &gocb.IncrementOptions{Initial: 1, Delta: 1})
 	if err != nil {
 		log.Fatal(err)
+		return err
 	}
-
-	// Get the document back
-	getResult, err := col.Get("u:jade", nil)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	var inUser User
-	err = getResult.Content(&inUser)
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Printf("User: %v\n", inUser)
+	log.Printf("Counter : %d\n", increment.Content())
+	return nil
 }
