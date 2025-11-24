@@ -2,7 +2,10 @@ module github.com/tiennm99/couchbase-keepalive
 
 go 1.24.10
 
-require github.com/couchbase/gocb/v2 v2.11.1
+require (
+	github.com/couchbase/gocb/v2 v2.11.1
+	github.com/joho/godotenv v1.5.1
+)
 
 require (
 	github.com/couchbase/gocbcore/v10 v10.8.1 // indirect
