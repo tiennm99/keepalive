@@ -17,20 +17,15 @@ func main() {
 		log.Println("Warning: .env file not found")
 	}
 
-	valkeyUrl, isExist := os.LookupEnv("VALKEY_URL")
+	valkeyURI, isExist := os.LookupEnv("VALKEY_URI")
 	if !isExist {
-		log.Fatal("Warning: VALKEY_URL not set!")
+		log.Fatal("Warning: VALKEY_URI not set!")
 		return
 	}
 
-	opt, err := valkey.ParseURL(valkeyUrl)
+	client, err := valkey.NewClient(valkey.ClientOption{InitAddress: []string{valkeyURI}})
 	if err != nil {
-		log.Fatal(err)
-	}
-
-	client, err := valkey.NewClient(opt)
-	if err != nil {
-		log.Fatal(err)
+		panic(err)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
