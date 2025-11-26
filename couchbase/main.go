@@ -121,7 +121,6 @@ func incrementCounter(col *gocb.Collection) error {
 	// If it already exists, the count will increase by the amount provided in the Delta option(i.e 1).
 	increment, err := col.Binary().Increment(counterDocId, &gocb.IncrementOptions{Initial: 1, Delta: 1})
 	if err != nil {
-		log.Fatal(err)
 		return err
 	}
 	log.Printf("Counter : %d\n", increment.Content())
