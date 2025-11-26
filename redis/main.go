@@ -51,7 +51,7 @@ func main() {
 	defer func() {
 		cancel()
 		if err := rdb.Close(); err != nil {
-			log.Printf("Error closing cluster: %v", err)
+			log.Printf("Error closing rdb: %v", err)
 		}
 	}()
 
@@ -63,8 +63,8 @@ func main() {
 func incrementCounter(ctx context.Context, rdb *redis.Client) error {
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
-	counterDocId := "counter"
-	increment, err := rdb.Incr(ctx, counterDocId).Result()
+	counterKey := "counter"
+	increment, err := rdb.Incr(ctx, counterKey).Result()
 	if err != nil {
 		return err
 	}
