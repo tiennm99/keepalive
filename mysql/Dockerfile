@@ -31,11 +31,12 @@ RUN adduser \
     --no-create-home \
     --uid "${UID}" \
     appuser
+
+RUN mkdir -p /app && chown -R appuser:appuser /app
+
 USER appuser
 
 COPY --from=build /bin/server /bin/
-
-RUN mkdir -p /app
 
 WORKDIR /app
 
