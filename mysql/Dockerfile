@@ -35,6 +35,10 @@ USER appuser
 
 COPY --from=build /bin/server /bin/
 
+RUN mkdir -p /app
+
+WORKDIR /app
+
 EXPOSE 1999
 
 ENTRYPOINT [ "/bin/server" ]
