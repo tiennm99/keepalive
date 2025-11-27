@@ -20,12 +20,6 @@ func main() {
 		log.Println("Warning: .env file not found")
 	}
 
-	driverName, isExist := os.LookupEnv("DRIVER_NAME")
-	if !isExist {
-		log.Fatal("Warning: DRIVER_NAME not set!")
-		return
-	}
-
 	dataSourceName, isExist := os.LookupEnv("DATA_SOURCE_NAME")
 	if !isExist {
 		log.Fatal("Warning: DATA_SOURCE_NAME not set!")
@@ -46,7 +40,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	db, err := sql.Open(driverName, dataSourceName)
+	db, err := sql.Open("mysql", dataSourceName)
 	if err != nil {
 		panic(err)
 	}
