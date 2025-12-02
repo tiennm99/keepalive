@@ -116,13 +116,20 @@ func main() {
 
 func incrementCounter(col *gocb.Collection) error {
 	counterDocId := "counter"
-	// Increment by 1, creating doc if needed.
-	// By using `Initial: 1` we set the starting count(non-negative) to 1 if the document needs to be created.
-	// If it already exists, the count will increase by the amount provided in the Delta option(i.e 1).
-	increment, err := col.Binary().Increment(counterDocId, &gocb.IncrementOptions{Initial: 1, Delta: 1})
+	docOut, err := col.Get(counterDocId, &gocb.GetOptions{})
 	if err != nil {
 		return err
 	}
-	log.Printf("Counter : %d\n", increment.Content())
+	var current uint64
+	err = docOut.Content(&current)
+	if err != nil {
+		return err
+	}
+	current++
+	_, err = col.Upsert(counterDocId, current, &gocb.UpsertOptions{})
+	if err != nil {
+		return err
+	}
+	log.Printf("Counter : %d\n", current)
 	return nil
 }
