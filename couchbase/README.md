@@ -1,13 +1,23 @@
 # couchbase-keepalive
-A lightweight Go utility that performs periodic operations to prevent Couchbase Capella free clusters from entering inactive state.
 
-## Related
+> [!IMPORTANT]
+> **Archived — moved to [tiennm99/db-keepalive](https://github.com/tiennm99/db-keepalive).**
+>
+> All six `*-keepalive` repos were consolidated into a single binary with pluggable adapters. Use `DB_TYPE=couchbase` with the new image:
+>
+> ```bash
+> docker run -d --restart unless-stopped \
+>   -e DB_TYPE=couchbase \
+>     -e COUCHBASE_CONNECTION_STRING='...' -e COUCHBASE_USERNAME=... # ...etc \
+>   ghcr.io/tiennm99/db-keepalive:latest
+> ```
+>
+> The source here is retained for git history. No further changes will land on this repo.
 
-Part of the `*-keepalive` family — same pattern, different databases:
+## Original description
 
-- [mongodb-keepalive](https://github.com/tiennm99/mongodb-keepalive) — Mongodb
-- [mysql-keepalive](https://github.com/tiennm99/mysql-keepalive) — Mysql
-- [redis-keepalive](https://github.com/tiennm99/redis-keepalive) — Redis
-- [postgresql-keepalive](https://github.com/tiennm99/postgresql-keepalive) — Postgresql
-- [valkey-keepalive](https://github.com/tiennm99/valkey-keepalive) — Valkey
+Lightweight Go utility performing periodic pings to keep Couchbase Capella free clusters active.
 
+## License
+
+Apache-2.0 — see [LICENSE](LICENSE).
