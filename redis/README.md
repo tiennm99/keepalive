@@ -8,7 +8,7 @@
 > ```bash
 > docker run -d --restart unless-stopped \
 >   -e DB_TYPE=redis \
->    \
+>   -e REDIS_URL='...' \
 >   ghcr.io/tiennm99/db-keepalive:latest
 > ```
 >
