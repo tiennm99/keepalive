@@ -1,13 +1,23 @@
 # valkey-keepalive
+
+> [!IMPORTANT]
+> **Archived — moved to [tiennm99/db-keepalive](https://github.com/tiennm99/db-keepalive).**
+>
+> All six `*-keepalive` repos were consolidated into a single binary with pluggable adapters. Use `DB_TYPE=valkey` with the new image:
+>
+> ```bash
+> docker run -d --restart unless-stopped \
+>   -e DB_TYPE=valkey \
+>    \
+>   ghcr.io/tiennm99/db-keepalive:latest
+> ```
+>
+> The source here is retained for git history. No further changes will land on this repo.
+
+## Original description
+
 Go utility performs periodic operations to Valkey server.
 
-## Related
+## License
 
-Part of the `*-keepalive` family — same pattern, different databases:
-
-- [mongodb-keepalive](https://github.com/tiennm99/mongodb-keepalive) — Mongodb
-- [mysql-keepalive](https://github.com/tiennm99/mysql-keepalive) — Mysql
-- [redis-keepalive](https://github.com/tiennm99/redis-keepalive) — Redis
-- [postgresql-keepalive](https://github.com/tiennm99/postgresql-keepalive) — Postgresql
-- [couchbase-keepalive](https://github.com/tiennm99/couchbase-keepalive) — Couchbase
-
+Apache-2.0 — see [LICENSE](LICENSE).
