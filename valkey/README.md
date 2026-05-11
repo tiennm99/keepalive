@@ -8,7 +8,7 @@
 > ```bash
 > docker run -d --restart unless-stopped \
 >   -e DB_TYPE=valkey \
->    \
+>   -e VALKEY_URL='...' \
 >   ghcr.io/tiennm99/db-keepalive:latest
 > ```
 >
