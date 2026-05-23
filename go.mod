@@ -13,7 +13,7 @@ require (
 )
 
 require (
-	filippo.io/edwards25519 v1.1.0 // indirect
+	filippo.io/edwards25519 v1.1.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/couchbase/gocbcore/v10 v10.5.4 // indirect
 	github.com/couchbase/gocbcoreps v0.1.3 // indirect
