@@ -16,7 +16,7 @@ type valkeyAdapter struct {
 }
 
 func (a *valkeyAdapter) Connect(_ context.Context) error {
-	url, err := envOrFail("VALKEY_URL")
+	url, err := envOrFail("KEEPALIVE_VALKEY_URL")
 	if err != nil {
 		return err
 	}
@@ -29,7 +29,7 @@ func (a *valkeyAdapter) Connect(_ context.Context) error {
 		return err
 	}
 	a.client = client
-	a.key = envOr("COUNTER_KEY", "counter")
+	a.key = envOr("KEEPALIVE_COUNTER_KEY", "counter")
 	return nil
 }
 

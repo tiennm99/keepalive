@@ -13,11 +13,12 @@ func init() {
 }
 
 type mysqlAdapter struct {
-	db *sql.DB
+	db  *sql.DB
+	key string
 }
 
 func (a *mysqlAdapter) Connect(ctx context.Context) error {
-	dsn, err := envOrFail("DATA_SOURCE_NAME")
+	dsn, err := envOrFail("KEEPALIVE_MYSQL_DSN")
 	if err != nil {
 		return err
 	}
@@ -29,6 +30,7 @@ func (a *mysqlAdapter) Connect(ctx context.Context) error {
 	db.SetMaxOpenConns(10)
 	db.SetMaxIdleConns(10)
 	a.db = db
+	a.key = envOr("KEEPALIVE_COUNTER_KEY", "counter")
 	return a.db.PingContext(ctx)
 }
 
@@ -38,14 +40,16 @@ func (a *mysqlAdapter) Increment(ctx context.Context) (int64, error) {
 		return 0, err
 	}
 	if _, err := tx.ExecContext(ctx,
-		"UPDATE `keepalive` SET `value` = `value` + 1 WHERE `key` = 'counter'",
+		"UPDATE `keepalive` SET `value` = `value` + 1 WHERE `key` = ?",
+		a.key,
 	); err != nil {
 		tx.Rollback()
 		return 0, err
 	}
 	var value int64
 	if err := tx.QueryRowContext(ctx,
-		"SELECT `value` FROM `keepalive` WHERE `key` = 'counter'",
+		"SELECT `value` FROM `keepalive` WHERE `key` = ?",
+		a.key,
 	).Scan(&value); err != nil {
 		tx.Rollback()
 		return 0, err

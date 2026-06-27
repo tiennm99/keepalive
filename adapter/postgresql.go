@@ -13,11 +13,12 @@ func init() {
 }
 
 type postgresAdapter struct {
-	db *sql.DB
+	db  *sql.DB
+	key string
 }
 
 func (a *postgresAdapter) Connect(ctx context.Context) error {
-	uri, err := envOrFail("SERVICE_URI")
+	uri, err := envOrFail("KEEPALIVE_POSTGRESQL_URL")
 	if err != nil {
 		return err
 	}
@@ -26,6 +27,7 @@ func (a *postgresAdapter) Connect(ctx context.Context) error {
 		return err
 	}
 	a.db = db
+	a.key = envOr("KEEPALIVE_COUNTER_KEY", "counter")
 	return a.db.PingContext(ctx)
 }
 
@@ -36,7 +38,8 @@ func (a *postgresAdapter) Increment(ctx context.Context) (int64, error) {
 	}
 	var value int64
 	if err := tx.QueryRowContext(ctx,
-		`UPDATE keepalive SET value = value + 1 WHERE key = 'counter' RETURNING value`,
+		`UPDATE keepalive SET value = value + 1 WHERE key = $1 RETURNING value`,
+		a.key,
 	).Scan(&value); err != nil {
 		tx.Rollback()
 		return 0, err

@@ -18,27 +18,27 @@ type couchbaseAdapter struct {
 }
 
 func (a *couchbaseAdapter) Connect(_ context.Context) error {
-	conn, err := envOrFail("COUCHBASE_CONNECTION_STRING")
+	conn, err := envOrFail("KEEPALIVE_COUCHBASE_CONNECTION_STRING")
 	if err != nil {
 		return err
 	}
-	user, err := envOrFail("COUCHBASE_USERNAME")
+	user, err := envOrFail("KEEPALIVE_COUCHBASE_USERNAME")
 	if err != nil {
 		return err
 	}
-	pass, err := envOrFail("COUCHBASE_PASSWORD")
+	pass, err := envOrFail("KEEPALIVE_COUCHBASE_PASSWORD")
 	if err != nil {
 		return err
 	}
-	bucket, err := envOrFail("COUCHBASE_BUCKET_NAME")
+	bucket, err := envOrFail("KEEPALIVE_COUCHBASE_BUCKET_NAME")
 	if err != nil {
 		return err
 	}
-	scope, err := envOrFail("COUCHBASE_SCOPE_NAME")
+	scope, err := envOrFail("KEEPALIVE_COUCHBASE_SCOPE_NAME")
 	if err != nil {
 		return err
 	}
-	collName, err := envOrFail("COUCHBASE_COLLECTION_NAME")
+	collName, err := envOrFail("KEEPALIVE_COUCHBASE_COLLECTION_NAME")
 	if err != nil {
 		return err
 	}
@@ -59,7 +59,7 @@ func (a *couchbaseAdapter) Connect(_ context.Context) error {
 	}
 	a.cluster = cluster
 	a.coll = b.Scope(scope).Collection(collName)
-	a.docID = envOr("COUNTER_KEY", "counter")
+	a.docID = envOr("KEEPALIVE_COUNTER_KEY", "counter")
 	return nil
 }
 

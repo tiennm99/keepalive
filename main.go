@@ -13,17 +13,22 @@ import (
 	"github.com/tiennm99/keepalive/adapter"
 )
 
+const (
+	envAdapter  = "KEEPALIVE_ADAPTER"
+	envInterval = "KEEPALIVE_INTERVAL"
+)
+
 func main() {
 	if err := godotenv.Load(); err != nil {
 		log.Println("note: .env not loaded, relying on process env")
 	}
 
-	dbType := os.Getenv("DB_TYPE")
+	dbType := os.Getenv(envAdapter)
 	if dbType == "" {
-		log.Fatalf("DB_TYPE is required (known: %v)", adapter.Known())
+		log.Fatalf("%s is required (known: %v)", envAdapter, adapter.Known())
 	}
 
-	interval := parseInterval(os.Getenv("INTERVAL"), time.Minute)
+	interval := parseInterval(os.Getenv(envInterval), time.Minute)
 
 	a, err := adapter.New(dbType)
 	if err != nil {

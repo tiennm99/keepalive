@@ -1,9 +1,16 @@
 package adapter
 
-import "os"
+import (
+	"fmt"
+	"os"
+)
 
-func lookupEnv(name string) (string, bool) {
-	return os.LookupEnv(name)
+func envOrFail(name string) (string, error) {
+	v, ok := os.LookupEnv(name)
+	if !ok || v == "" {
+		return "", fmt.Errorf("env %s is required", name)
+	}
+	return v, nil
 }
 
 func envOr(name, def string) string {

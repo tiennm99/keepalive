@@ -16,7 +16,7 @@ type redisAdapter struct {
 }
 
 func (a *redisAdapter) Connect(ctx context.Context) error {
-	url, err := envOrFail("REDIS_URL")
+	url, err := envOrFail("KEEPALIVE_REDIS_URL")
 	if err != nil {
 		return err
 	}
@@ -25,7 +25,7 @@ func (a *redisAdapter) Connect(ctx context.Context) error {
 		return err
 	}
 	a.client = redis.NewClient(opt)
-	a.key = envOr("COUNTER_KEY", "counter")
+	a.key = envOr("KEEPALIVE_COUNTER_KEY", "counter")
 	return a.client.Ping(ctx).Err()
 }
 

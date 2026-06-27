@@ -8,23 +8,25 @@ Successor to the `*-keepalive` family: one binary, one image, six datastore adap
 
 ## Supported adapters
 
-| `DB_TYPE`    | Driver                              | Env vars |
-| ------------ | ----------------------------------- | -------- |
-| `redis`      | `github.com/redis/go-redis/v9`      | `REDIS_URL` |
-| `valkey`     | `github.com/valkey-io/valkey-go`    | `VALKEY_URL` |
-| `postgresql` | `github.com/lib/pq`                 | `SERVICE_URI` |
-| `mysql`      | `github.com/go-sql-driver/mysql`    | `DATA_SOURCE_NAME` |
-| `mongodb`    | `go.mongodb.org/mongo-driver/v2`    | `MONGODB_URI`, `MONGODB_DATABASE`, `MONGODB_COLLECTION` |
-| `couchbase`  | `github.com/couchbase/gocb/v2`      | `COUCHBASE_CONNECTION_STRING`, `COUCHBASE_USERNAME`, `COUCHBASE_PASSWORD`, `COUCHBASE_BUCKET_NAME`, `COUCHBASE_SCOPE_NAME`, `COUCHBASE_COLLECTION_NAME` |
+Set `KEEPALIVE_ADAPTER` to one of the values below.
 
-Optional: `INTERVAL` (e.g. `30s`, `5m`; default `1m`), `COUNTER_KEY` (default `counter`).
+| `KEEPALIVE_ADAPTER` | Driver                              | Env vars |
+| ------------------- | ----------------------------------- | ------------------ |
+| `redis`             | `github.com/redis/go-redis/v9`      | `KEEPALIVE_REDIS_URL` |
+| `valkey`            | `github.com/valkey-io/valkey-go`    | `KEEPALIVE_VALKEY_URL` |
+| `postgresql`        | `github.com/lib/pq`                 | `KEEPALIVE_POSTGRESQL_URL` |
+| `mysql`             | `github.com/go-sql-driver/mysql`    | `KEEPALIVE_MYSQL_DSN` |
+| `mongodb`           | `go.mongodb.org/mongo-driver/v2`    | `KEEPALIVE_MONGODB_URI`, `KEEPALIVE_MONGODB_DATABASE`, `KEEPALIVE_MONGODB_COLLECTION` |
+| `couchbase`         | `github.com/couchbase/gocb/v2`      | `KEEPALIVE_COUCHBASE_CONNECTION_STRING`, `KEEPALIVE_COUCHBASE_USERNAME`, `KEEPALIVE_COUCHBASE_PASSWORD`, `KEEPALIVE_COUCHBASE_BUCKET_NAME`, `KEEPALIVE_COUCHBASE_SCOPE_NAME`, `KEEPALIVE_COUCHBASE_COLLECTION_NAME` |
+
+Optional: `KEEPALIVE_INTERVAL` (e.g. `30s`, `5m`; default `1m`), `KEEPALIVE_COUNTER_KEY` (default `counter`).
 
 ## Quick start (Docker)
 
 ```bash
 docker run -d --name keepalive --restart unless-stopped \
-  -e DB_TYPE=redis \
-  -e REDIS_URL='redis://default@host:6379' \
+  -e KEEPALIVE_ADAPTER=redis \
+  -e KEEPALIVE_REDIS_URL='redis://default@host:6379' \
   ghcr.io/tiennm99/keepalive:latest
 ```
 
@@ -33,19 +35,19 @@ docker run -d --name keepalive --restart unless-stopped \
 ```bash
 git clone https://github.com/tiennm99/keepalive
 cd keepalive
-cp .env.example .env       # then edit DB_TYPE + the driver's env vars
+cp .env.example .env       # then edit KEEPALIVE_ADAPTER + the driver's env vars
 go run .
 ```
 
 ## How it works
 
-On every tick the chosen adapter performs the cheapest write that proves the cluster is alive:
+On every tick the chosen adapter performs the cheapest write that proves the cluster is alive. `KEEPALIVE_COUNTER_KEY` selects the key/doc ID and defaults to `counter`.
 
-- **Redis/Valkey** — `INCR counter`
-- **PostgreSQL** — `UPDATE keepalive SET value = value + 1 WHERE key = 'counter' RETURNING value`
-- **MySQL** — `UPDATE` + `SELECT` inside a transaction
-- **MongoDB** — `FindOneAndUpdate({_id: "counter"}, {$inc: {count: 1}}, upsert)`
-- **Couchbase** — `GET counter` → `++` → `UPSERT counter`
+- **Redis/Valkey** — `INCR key`
+- **PostgreSQL** — `UPDATE keepalive SET value = value + 1 WHERE key = $1 RETURNING value`
+- **MySQL** — `UPDATE` + `SELECT` by key inside a transaction
+- **MongoDB** — `FindOneAndUpdate({_id: key}, {$inc: {count: 1}}, upsert)`
+- **Couchbase** — `GET key` -> `++` -> `UPSERT key`
 
 The PostgreSQL and MySQL adapters expect a table:
 
@@ -54,7 +56,7 @@ CREATE TABLE keepalive (key TEXT PRIMARY KEY, value BIGINT NOT NULL DEFAULT 0);
 INSERT INTO keepalive (key, value) VALUES ('counter', 0);
 ```
 
-(MySQL uses backticked identifiers — see `adapter/mysql.go`.)
+Seed the value with your configured `KEEPALIVE_COUNTER_KEY` when it is not `counter`. MySQL uses backticked identifiers — see `adapter/mysql.go`.
 
 ## Adding a new adapter
 
@@ -64,7 +66,7 @@ INSERT INTO keepalive (key, value) VALUES ('counter', 0);
    ```go
    func init() { Registry["<name>"] = func() (Adapter, error) { return &myAdapter{}, nil } }
    ```
-4. Add an `import _ "your driver"` if needed, and the env vars to `.env.example` and the table above.
+4. Add an `import _ "your driver"` if needed, and the `KEEPALIVE_*` env vars to `.env.example` and the table above.
 
 ## Migrated from
 

@@ -24,7 +24,7 @@ var Registry = map[string]Factory{}
 func New(dbType string) (Adapter, error) {
 	f, ok := Registry[dbType]
 	if !ok {
-		return nil, fmt.Errorf("unknown DB_TYPE %q (known: %v)", dbType, Known())
+		return nil, fmt.Errorf("unknown adapter %q (known: %v)", dbType, Known())
 	}
 	return f()
 }
@@ -35,12 +35,4 @@ func Known() []string {
 		out = append(out, k)
 	}
 	return out
-}
-
-func envOrFail(name string) (string, error) {
-	v, ok := lookupEnv(name)
-	if !ok || v == "" {
-		return "", fmt.Errorf("env %s is required", name)
-	}
-	return v, nil
 }

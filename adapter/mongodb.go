@@ -20,15 +20,15 @@ type mongoAdapter struct {
 }
 
 func (a *mongoAdapter) Connect(ctx context.Context) error {
-	uri, err := envOrFail("MONGODB_URI")
+	uri, err := envOrFail("KEEPALIVE_MONGODB_URI")
 	if err != nil {
 		return err
 	}
-	dbName, err := envOrFail("MONGODB_DATABASE")
+	dbName, err := envOrFail("KEEPALIVE_MONGODB_DATABASE")
 	if err != nil {
 		return err
 	}
-	collName, err := envOrFail("MONGODB_COLLECTION")
+	collName, err := envOrFail("KEEPALIVE_MONGODB_COLLECTION")
 	if err != nil {
 		return err
 	}
@@ -38,7 +38,7 @@ func (a *mongoAdapter) Connect(ctx context.Context) error {
 	}
 	a.client = client
 	a.coll = client.Database(dbName).Collection(collName)
-	a.docID = envOr("COUNTER_KEY", "counter")
+	a.docID = envOr("KEEPALIVE_COUNTER_KEY", "counter")
 	return client.Ping(ctx, nil)
 }
 
