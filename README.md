@@ -1,10 +1,12 @@
-# db-keepalive
+# keepalive
 
-Pluggable Go daemon that performs a periodic counter increment to prevent free-tier database clusters (Redis Cloud, Valkey, Aiven, Neon, Supabase, MongoDB Atlas, Couchbase Capella, etc.) from being auto-paused for inactivity.
+Pluggable Go daemon that periodically touches external services to prevent idle shutdowns, pauses, or cold starts.
 
-Successor to the `*-keepalive` family: one binary, one image, six adapters.
+The current adapters perform cheap datastore writes for Redis Cloud, Valkey, Aiven, Neon, Supabase, MongoDB Atlas, Couchbase Capella, and similar hosted services.
 
-## Supported drivers
+Successor to the `*-keepalive` family: one binary, one image, six datastore adapters.
+
+## Supported adapters
 
 | `DB_TYPE`    | Driver                              | Env vars |
 | ------------ | ----------------------------------- | -------- |
@@ -20,17 +22,17 @@ Optional: `INTERVAL` (e.g. `30s`, `5m`; default `1m`), `COUNTER_KEY` (default `c
 ## Quick start (Docker)
 
 ```bash
-docker run -d --name db-keepalive --restart unless-stopped \
+docker run -d --name keepalive --restart unless-stopped \
   -e DB_TYPE=redis \
   -e REDIS_URL='redis://default@host:6379' \
-  ghcr.io/tiennm99/db-keepalive:latest
+  ghcr.io/tiennm99/keepalive:latest
 ```
 
 ## Quick start (local)
 
 ```bash
-git clone https://github.com/tiennm99/db-keepalive
-cd db-keepalive
+git clone https://github.com/tiennm99/keepalive
+cd keepalive
 cp .env.example .env       # then edit DB_TYPE + the driver's env vars
 go run .
 ```
@@ -54,7 +56,7 @@ INSERT INTO keepalive (key, value) VALUES ('counter', 0);
 
 (MySQL uses backticked identifiers — see `adapter/mysql.go`.)
 
-## Adding a new database
+## Adding a new adapter
 
 1. Create `adapter/<name>.go`.
 2. Implement the `Adapter` interface in `adapter/adapter.go` (`Connect`, `Increment`, `Close`).
@@ -66,7 +68,7 @@ INSERT INTO keepalive (key, value) VALUES ('counter', 0);
 
 ## Migrated from
 
-This repo replaces six single-database repos. All are archived with a pointer here:
+This repo replaces six single-datastore repos. All are archived with a pointer here:
 
 - [redis-keepalive](https://github.com/tiennm99/redis-keepalive)
 - [valkey-keepalive](https://github.com/tiennm99/valkey-keepalive)

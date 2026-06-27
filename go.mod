@@ -1,4 +1,4 @@
-module github.com/tiennm99/db-keepalive
+module github.com/tiennm99/keepalive
 
 go 1.25.0
 

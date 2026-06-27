@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
-	"github.com/tiennm99/db-keepalive/adapter"
+	"github.com/tiennm99/keepalive/adapter"
 )
 
 func main() {
@@ -44,7 +44,7 @@ func main() {
 		}
 	}()
 
-	log.Printf("db-keepalive: %s every %s", dbType, interval)
+	log.Printf("keepalive: %s every %s", dbType, interval)
 
 	go func() {
 		ticker := time.NewTicker(interval)

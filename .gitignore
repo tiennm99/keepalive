@@ -1,7 +1,7 @@
 .env
 *.pem
 ca.pem
-/db-keepalive
+/keepalive
 /dist/
 *.test
 *.out
