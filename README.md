@@ -8,7 +8,7 @@ Successor to the `*-keepalive` family: one binary, one image, six datastore adap
 
 ## Configuration
 
-By default, keepalive reads `keepalive.yaml` from the current working directory. One deployment can keep any number of services alive.
+By default, keepalive reads the first config file it finds: `keepalive.yaml`, `keepalive.yml`, `/keepalive.yaml`, then `/keepalive.yml`. One deployment can keep any number of services alive.
 
 ```yaml
 interval: 1m
@@ -65,6 +65,8 @@ docker run -d --name keepalive --restart unless-stopped \
   -v "$PWD/keepalive.yaml:/keepalive.yaml:ro" \
   keepalive:local
 ```
+
+If your host config file is named `keepalive.yml`, mount it to `/keepalive.yml` instead.
 
 ## Quick start (local)
 

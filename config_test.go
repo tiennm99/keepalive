@@ -1,6 +1,9 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -32,6 +35,39 @@ func TestKeepaliveExampleConfigParses(t *testing.T) {
 	}
 	if len(services) != 4 {
 		t.Fatalf("len(services) = %d, want 4", len(services))
+	}
+}
+
+func TestFirstExistingConfigFileFindsYMLFallback(t *testing.T) {
+	dir := t.TempDir()
+	ymlPath := filepath.Join(dir, "keepalive.yml")
+	if err := os.WriteFile(ymlPath, []byte("services: []\n"), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	got, err := firstExistingConfigFile([]string{
+		filepath.Join(dir, "keepalive.yaml"),
+		ymlPath,
+	})
+	if err != nil {
+		t.Fatalf("firstExistingConfigFile returned error: %v", err)
+	}
+	if got != ymlPath {
+		t.Fatalf("firstExistingConfigFile() = %q, want %q", got, ymlPath)
+	}
+}
+
+func TestFirstExistingConfigFileReportsCandidates(t *testing.T) {
+	dir := t.TempDir()
+	_, err := firstExistingConfigFile([]string{
+		filepath.Join(dir, "keepalive.yaml"),
+		filepath.Join(dir, "keepalive.yml"),
+	})
+	if err == nil {
+		t.Fatal("firstExistingConfigFile returned nil error")
+	}
+	if !strings.Contains(err.Error(), "keepalive.yaml") || !strings.Contains(err.Error(), "keepalive.yml") {
+		t.Fatalf("error %q does not list expected candidates", err)
 	}
 }
 

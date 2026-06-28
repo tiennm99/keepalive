@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"net/url"
@@ -17,6 +18,13 @@ const (
 	defaultInterval   = time.Minute
 	defaultCounterKey = "counter"
 )
+
+var defaultConfigFiles = []string{
+	"keepalive.yaml",
+	"keepalive.yml",
+	"/keepalive.yaml",
+	"/keepalive.yml",
+}
 
 type appConfig struct {
 	Interval   string              `json:"interval" yaml:"interval"`
@@ -50,6 +58,21 @@ func loadConfigFile(path string) ([]serviceConfig, error) {
 		return nil, fmt.Errorf("parse config: %w", err)
 	}
 	return normalizeConfig(raw)
+}
+
+func defaultConfigFile() (string, error) {
+	return firstExistingConfigFile(defaultConfigFiles)
+}
+
+func firstExistingConfigFile(paths []string) (string, error) {
+	for _, path := range paths {
+		if _, err := os.Stat(path); err == nil {
+			return path, nil
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return "", err
+		}
+	}
+	return "", fmt.Errorf("config file not found (looked for: %s)", strings.Join(paths, ", "))
 }
 
 func normalizeConfig(raw appConfig) ([]serviceConfig, error) {

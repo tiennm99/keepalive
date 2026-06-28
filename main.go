@@ -11,10 +11,13 @@ import (
 	"github.com/tiennm99/keepalive/adapter"
 )
 
-const defaultConfigFile = "keepalive.yaml"
-
 func main() {
-	services, err := loadConfigFile(defaultConfigFile)
+	configPath, err := defaultConfigFile()
+	if err != nil {
+		log.Fatalf("load config: %v", err)
+	}
+
+	services, err := loadConfigFile(configPath)
 	if err != nil {
 		log.Fatalf("load config: %v", err)
 	}
