@@ -36,7 +36,28 @@ func (a *mysqlAdapter) Connect(ctx context.Context) error {
 	db.SetMaxOpenConns(10)
 	db.SetMaxIdleConns(10)
 	a.db = db
-	return a.db.PingContext(ctx)
+	if err := a.db.PingContext(ctx); err != nil {
+		a.db.Close()
+		return err
+	}
+	if err := a.ensureInitialized(ctx); err != nil {
+		a.db.Close()
+		return err
+	}
+	return nil
+}
+
+func (a *mysqlAdapter) ensureInitialized(ctx context.Context) error {
+	if _, err := a.db.ExecContext(ctx,
+		"CREATE TABLE IF NOT EXISTS `keepalive` (`key` VARCHAR(255) PRIMARY KEY, `value` BIGINT NOT NULL DEFAULT 0)",
+	); err != nil {
+		return err
+	}
+	_, err := a.db.ExecContext(ctx,
+		"INSERT IGNORE INTO `keepalive` (`key`, `value`) VALUES (?, 0)",
+		a.key,
+	)
+	return err
 }
 
 func (a *mysqlAdapter) Increment(ctx context.Context) (int64, error) {
@@ -63,5 +84,8 @@ func (a *mysqlAdapter) Increment(ctx context.Context) (int64, error) {
 }
 
 func (a *mysqlAdapter) Close(_ context.Context) error {
+	if a.db == nil {
+		return nil
+	}
 	return a.db.Close()
 }

@@ -25,7 +25,7 @@ type valkeyAdapter struct {
 	key    string
 }
 
-func (a *valkeyAdapter) Connect(_ context.Context) error {
+func (a *valkeyAdapter) Connect(ctx context.Context) error {
 	opt, err := valkey.ParseURL(a.url)
 	if err != nil {
 		return err
@@ -35,6 +35,10 @@ func (a *valkeyAdapter) Connect(_ context.Context) error {
 		return err
 	}
 	a.client = client
+	if err := a.client.Do(ctx, a.client.B().Setnx().Key(a.key).Value("0").Build()).Error(); err != nil {
+		a.client.Close()
+		return err
+	}
 	return nil
 }
 
@@ -43,6 +47,9 @@ func (a *valkeyAdapter) Increment(ctx context.Context) (int64, error) {
 }
 
 func (a *valkeyAdapter) Close(_ context.Context) error {
+	if a.client == nil {
+		return nil
+	}
 	a.client.Close()
 	return nil
 }

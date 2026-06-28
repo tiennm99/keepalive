@@ -31,7 +31,15 @@ func (a *redisAdapter) Connect(ctx context.Context) error {
 		return err
 	}
 	a.client = redis.NewClient(opt)
-	return a.client.Ping(ctx).Err()
+	if err := a.client.Ping(ctx).Err(); err != nil {
+		a.client.Close()
+		return err
+	}
+	if err := a.client.SetNX(ctx, a.key, 0, 0).Err(); err != nil {
+		a.client.Close()
+		return err
+	}
+	return nil
 }
 
 func (a *redisAdapter) Increment(ctx context.Context) (int64, error) {
@@ -39,5 +47,8 @@ func (a *redisAdapter) Increment(ctx context.Context) (int64, error) {
 }
 
 func (a *redisAdapter) Close(_ context.Context) error {
+	if a.client == nil {
+		return nil
+	}
 	return a.client.Close()
 }

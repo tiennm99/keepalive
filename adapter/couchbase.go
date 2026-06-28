@@ -33,14 +33,24 @@ func init() {
 		if err != nil {
 			return nil, err
 		}
+		readyTimeout, err := cfg.OptionalDuration("ready_timeout", defaultCouchbaseReadyTimeout)
+		if err != nil {
+			return nil, err
+		}
+		bucketRAMQuotaMB, err := cfg.OptionalUint64("bucket_ram_quota_mb", 0)
+		if err != nil {
+			return nil, err
+		}
 		return &couchbaseAdapter{
-			conn:     conn,
-			user:     user,
-			pass:     pass,
-			bucket:   bucket,
-			scope:    scope,
-			collName: collName,
-			docID:    cfg.Optional("counter_key", "counter"),
+			conn:             conn,
+			user:             user,
+			pass:             pass,
+			bucket:           bucket,
+			scope:            scope,
+			collName:         collName,
+			docID:            cfg.Optional("counter_key", "counter"),
+			readyTimeout:     readyTimeout,
+			bucketRAMQuotaMB: bucketRAMQuotaMB,
 		}, nil
 	}
 }
@@ -55,9 +65,12 @@ type couchbaseAdapter struct {
 	scope    string
 	collName string
 	docID    string
+
+	readyTimeout     time.Duration
+	bucketRAMQuotaMB uint64
 }
 
-func (a *couchbaseAdapter) Connect(_ context.Context) error {
+func (a *couchbaseAdapter) Connect(ctx context.Context) error {
 	opts := gocb.ClusterOptions{
 		Authenticator: gocb.PasswordAuthenticator{Username: a.user, Password: a.pass},
 	}
@@ -68,12 +81,29 @@ func (a *couchbaseAdapter) Connect(_ context.Context) error {
 	if err != nil {
 		return err
 	}
+	connected := false
+	defer func() {
+		if !connected {
+			cluster.Close(nil)
+		}
+	}()
+
+	if err := a.ensureBucket(ctx, cluster); err != nil {
+		return err
+	}
 	b := cluster.Bucket(a.bucket)
-	if err := b.WaitUntilReady(5*time.Second, nil); err != nil {
+	if err := b.WaitUntilReady(a.readyTimeout, &gocb.WaitUntilReadyOptions{Context: ctx}); err != nil {
+		return err
+	}
+	if err := a.ensureScopeAndCollection(ctx, b); err != nil {
 		return err
 	}
 	a.cluster = cluster
 	a.coll = b.Scope(a.scope).Collection(a.collName)
+	if err := a.ensureDocument(ctx); err != nil {
+		return err
+	}
+	connected = true
 	return nil
 }
 
@@ -98,5 +128,8 @@ func (a *couchbaseAdapter) Increment(_ context.Context) (int64, error) {
 }
 
 func (a *couchbaseAdapter) Close(_ context.Context) error {
+	if a.cluster == nil {
+		return nil
+	}
 	return a.cluster.Close(nil)
 }

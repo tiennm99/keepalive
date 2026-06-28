@@ -48,7 +48,21 @@ func (a *mongoAdapter) Connect(ctx context.Context) error {
 	}
 	a.client = client
 	a.coll = client.Database(a.dbName).Collection(a.collName)
-	return client.Ping(ctx, nil)
+	if err := client.Ping(ctx, nil); err != nil {
+		client.Disconnect(ctx)
+		return err
+	}
+	if err := a.ensureInitialized(ctx); err != nil {
+		client.Disconnect(ctx)
+		return err
+	}
+	return nil
+}
+
+func (a *mongoAdapter) ensureInitialized(ctx context.Context) error {
+	update := bson.M{"$setOnInsert": bson.M{"count": int64(0)}}
+	_, err := a.coll.UpdateOne(ctx, bson.M{"_id": a.docID}, update, options.UpdateOne().SetUpsert(true))
+	return err
 }
 
 func (a *mongoAdapter) Increment(ctx context.Context) (int64, error) {
@@ -65,5 +79,8 @@ func (a *mongoAdapter) Increment(ctx context.Context) (int64, error) {
 }
 
 func (a *mongoAdapter) Close(ctx context.Context) error {
+	if a.client == nil {
+		return nil
+	}
 	return a.client.Disconnect(ctx)
 }

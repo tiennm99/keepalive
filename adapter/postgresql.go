@@ -33,7 +33,30 @@ func (a *postgresAdapter) Connect(ctx context.Context) error {
 		return err
 	}
 	a.db = db
-	return a.db.PingContext(ctx)
+	if err := a.db.PingContext(ctx); err != nil {
+		a.db.Close()
+		return err
+	}
+	if err := a.ensureInitialized(ctx); err != nil {
+		a.db.Close()
+		return err
+	}
+	return nil
+}
+
+func (a *postgresAdapter) ensureInitialized(ctx context.Context) error {
+	if _, err := a.db.ExecContext(ctx, `
+CREATE TABLE IF NOT EXISTS keepalive (
+	key TEXT PRIMARY KEY,
+	value BIGINT NOT NULL DEFAULT 0
+)`); err != nil {
+		return err
+	}
+	_, err := a.db.ExecContext(ctx,
+		`INSERT INTO keepalive (key, value) VALUES ($1, 0) ON CONFLICT (key) DO NOTHING`,
+		a.key,
+	)
+	return err
 }
 
 func (a *postgresAdapter) Increment(ctx context.Context) (int64, error) {
@@ -53,5 +76,8 @@ func (a *postgresAdapter) Increment(ctx context.Context) (int64, error) {
 }
 
 func (a *postgresAdapter) Close(_ context.Context) error {
+	if a.db == nil {
+		return nil
+	}
 	return a.db.Close()
 }

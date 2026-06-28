@@ -48,7 +48,7 @@ services:
 | `postgresql` | `github.com/lib/pq`                 | `url` |
 | `mysql`      | `github.com/go-sql-driver/mysql`    | `dsn` |
 | `mongodb`    | `go.mongodb.org/mongo-driver/v2`    | `uri`, `database`, `collection` |
-| `couchbase`  | `github.com/couchbase/gocb/v2`      | `connection_string`, `username`, `password`, `bucket_name`, `scope_name`, `collection_name` |
+| `couchbase`  | `github.com/couchbase/gocb/v2`      | `connection_string`, `username`, `password`, `bucket_name`, `scope_name`, `collection_name`, optional `ready_timeout`, optional `bucket_ram_quota_mb` |
 
 ## Quick start (Compose)
 
@@ -86,22 +86,15 @@ go run .
 
 ## How it works
 
-On every tick the chosen adapter performs the cheapest write that proves the cluster is alive. `counter_key` selects the key/doc ID and defaults to `counter`.
+On startup each adapter initializes the minimum resource it owns, then every tick performs the cheapest write that proves the cluster is alive. `counter_key` selects the key/doc ID and defaults to `counter`.
 
-- **Redis/Valkey** — `INCR key`
-- **PostgreSQL** — `UPDATE keepalive SET value = value + 1 WHERE key = $1 RETURNING value`
-- **MySQL** — `UPDATE` + `SELECT` by key inside a transaction
-- **MongoDB** — `FindOneAndUpdate({_id: key}, {$inc: {count: 1}}, upsert)`
-- **Couchbase** — `GET key` -> `++` -> `UPSERT key`
+- **Redis/Valkey** — initialize with `SETNX key 0`, then `INCR key`
+- **PostgreSQL** — `CREATE TABLE IF NOT EXISTS keepalive`, seed `key`, then `UPDATE ... RETURNING`
+- **MySQL** — `CREATE TABLE IF NOT EXISTS keepalive`, seed `key`, then `UPDATE` + `SELECT`
+- **MongoDB** — upsert `{_id: key, count: 0}` on connect, then `FindOneAndUpdate({_id: key}, {$inc: {count: 1}}, upsert)`
+- **Couchbase** — optionally create the bucket when `bucket_ram_quota_mb` is set, create configured scope/collection when missing, insert `key = 0` if missing, then `GET key` -> `++` -> `UPSERT key`
 
-The PostgreSQL and MySQL adapters expect a table:
-
-```sql
-CREATE TABLE keepalive (key TEXT PRIMARY KEY, value BIGINT NOT NULL DEFAULT 0);
-INSERT INTO keepalive (key, value) VALUES ('counter', 0);
-```
-
-Seed the value with your configured `counter_key` when it is not `counter`. MySQL uses backticked identifiers — see `adapter/mysql.go`.
+Each configured service starts independently. If one service cannot connect, it logs the error and retries without stopping other services in the same deployment.
 
 ## Adding a new adapter
 

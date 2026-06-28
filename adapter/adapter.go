@@ -9,6 +9,9 @@ package adapter
 import (
 	"context"
 	"fmt"
+	"strconv"
+	"strings"
+	"time"
 )
 
 type Adapter interface {
@@ -32,6 +35,40 @@ func (c Config) Optional(name, def string) string {
 		return v
 	}
 	return def
+}
+
+func (c Config) OptionalDuration(name string, def time.Duration) (time.Duration, error) {
+	value := strings.TrimSpace(c[name])
+	if value == "" {
+		return def, nil
+	}
+	if d, err := time.ParseDuration(value); err == nil {
+		if d <= 0 {
+			return 0, fmt.Errorf("config %s must be greater than zero", name)
+		}
+		return d, nil
+	}
+	seconds, err := strconv.Atoi(value)
+	if err != nil {
+		return 0, fmt.Errorf("config %s must be a duration like 30s or an integer number of seconds", name)
+	}
+	d := time.Duration(seconds) * time.Second
+	if d <= 0 {
+		return 0, fmt.Errorf("config %s must be greater than zero", name)
+	}
+	return d, nil
+}
+
+func (c Config) OptionalUint64(name string, def uint64) (uint64, error) {
+	value := strings.TrimSpace(c[name])
+	if value == "" {
+		return def, nil
+	}
+	out, err := strconv.ParseUint(value, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("config %s must be an unsigned integer", name)
+	}
+	return out, nil
 }
 
 type Factory func(Config) (Adapter, error)
