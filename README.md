@@ -18,6 +18,7 @@ services:
   - adapter: redis
     config:
       url: redis://default@redis-a.example.com:6379
+      namespace: keepalive
 
   - adapter: mongodb
     config:
@@ -43,7 +44,7 @@ services:
 
 | `adapter`    | Driver                              | `config` keys |
 | ------------ | ----------------------------------- | ------------- |
-| `redis`      | `github.com/redis/go-redis/v9`      | `url` |
+| `redis`      | `github.com/redis/go-redis/v9`      | `url`, optional `namespace` |
 | `valkey`     | `github.com/valkey-io/valkey-go`    | `url` |
 | `postgresql` | `github.com/lib/pq`                 | `url` |
 | `mysql`      | `github.com/go-sql-driver/mysql`    | `dsn` |
@@ -88,7 +89,8 @@ go run .
 
 On startup each adapter initializes the minimum resource it owns, then every tick performs the cheapest write that proves the cluster is alive. `counter_key` selects the key/doc ID and defaults to `counter`.
 
-- **Redis/Valkey** — initialize with `SETNX key 0`, then `INCR key`
+- **Redis** — initialize with `SETNX key 0`, then `INCR key`. When `namespace` is empty, the key is `counter`; when `namespace: keepalive`, the key is `keepalive:counter`.
+- **Valkey** — initialize with `SETNX key 0`, then `INCR key`
 - **PostgreSQL** — `CREATE TABLE IF NOT EXISTS keepalive`, seed `key`, then `UPDATE ... RETURNING`
 - **MySQL** — `CREATE TABLE IF NOT EXISTS keepalive`, seed `key`, then `UPDATE` + `SELECT`
 - **MongoDB** — upsert `{_id: key, count: 0}` on connect, then `FindOneAndUpdate({_id: key}, {$inc: {count: 1}}, upsert)`

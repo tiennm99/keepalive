@@ -6,6 +6,7 @@ services:
   - adapter: redis
     config:
       url: redis://default@redis-a.example.com:6379
+      namespace: keepalive
 
   - adapter: redis
     config:

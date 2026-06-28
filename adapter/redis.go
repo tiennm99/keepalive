@@ -2,6 +2,7 @@ package adapter
 
 import (
 	"context"
+	"strings"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -14,7 +15,7 @@ func init() {
 		}
 		return &redisAdapter{
 			url: url,
-			key: cfg.Optional("counter_key", "counter"),
+			key: redisCounterKey(cfg.Optional("counter_key", "counter"), cfg.Optional("namespace", "")),
 		}, nil
 	}
 }
@@ -51,4 +52,12 @@ func (a *redisAdapter) Close(_ context.Context) error {
 		return nil
 	}
 	return a.client.Close()
+}
+
+func redisCounterKey(counterKey, namespace string) string {
+	namespace = strings.TrimSpace(namespace)
+	if namespace == "" {
+		return counterKey
+	}
+	return namespace + ":" + counterKey
 }
