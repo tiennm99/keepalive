@@ -96,7 +96,7 @@ On startup each adapter initializes the minimum resource it owns, then every tic
 
 Each configured service starts independently. If one service cannot connect, it logs the error and retries without stopping other services in the same deployment.
 
-For hosted Couchbase/Capella clusters, `ready_timeout` defaults to `2m`. If Couchbase still reports `CONNECTION_ERROR`, check the connection string, bucket name, database user permissions, and Capella allowed IP/network access.
+For hosted Couchbase/Capella clusters, `ready_timeout` defaults to `30s`. If Couchbase reports `CONNECTION_ERROR`, check the connection string, bucket name, database user permissions, and Capella allowed IP/network access.
 
 ## Adding a new adapter
 

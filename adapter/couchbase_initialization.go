@@ -9,7 +9,7 @@ import (
 	"github.com/couchbase/gocb/v2"
 )
 
-const defaultCouchbaseReadyTimeout = 2 * time.Minute
+const defaultCouchbaseReadyTimeout = 30 * time.Second
 
 func (a *couchbaseAdapter) bucketReadyError(err error) error {
 	return fmt.Errorf(

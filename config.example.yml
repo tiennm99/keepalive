@@ -25,6 +25,6 @@ services:
       bucket_name: keepalive
       scope_name: _default
       collection_name: _default
-      ready_timeout: 2m
+      ready_timeout: 30s
       # Optional. Set only when this user can create a missing bucket.
       # bucket_ram_quota_mb: 128
