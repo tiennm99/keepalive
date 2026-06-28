@@ -20,6 +20,18 @@ services:
       url: redis://default@redis-a.example.com:6379
       namespace: keepalive
 
+  - adapter: valkey
+    config:
+      url: valkey://default@valkey-a.example.com:6379
+
+  - adapter: postgresql
+    config:
+      url: postgresql://user:pass@postgres-a.example.com:5432/keepalive?sslmode=require
+
+  - adapter: mysql
+    config:
+      dsn: user:pass@tcp(mysql-a.example.com:3306)/keepalive
+
   - adapter: mongodb
     config:
       uri: mongodb+srv://user:pass@mongo-a.example.com
