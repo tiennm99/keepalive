@@ -20,10 +20,10 @@ const (
 )
 
 var defaultConfigFiles = []string{
-	"keepalive.yaml",
-	"keepalive.yml",
-	"/keepalive.yaml",
-	"/keepalive.yml",
+	"config.yml",
+	"config.yaml",
+	"/config.yml",
+	"/config.yaml",
 }
 
 type appConfig struct {

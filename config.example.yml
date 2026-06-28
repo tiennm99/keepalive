@@ -1,4 +1,4 @@
-# Optional defaults for every service.
+# Optional defaults shared by every service.
 interval: 1m
 counter_key: counter
 

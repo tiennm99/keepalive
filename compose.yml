@@ -6,4 +6,4 @@ services:
     container_name: keepalive
     restart: unless-stopped
     volumes:
-      - ./keepalive.yaml:/keepalive.yaml:ro
+      - ./config.yml:/config.yml:ro

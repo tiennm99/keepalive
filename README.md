@@ -8,7 +8,7 @@ Successor to the `*-keepalive` family: one binary, one image, six datastore adap
 
 ## Configuration
 
-By default, keepalive reads the first config file it finds: `keepalive.yaml`, `keepalive.yml`, `/keepalive.yaml`, then `/keepalive.yml`. One deployment can keep any number of services alive.
+By default, keepalive reads the first config file it finds: `config.yml`, `config.yaml`, `/config.yml`, then `/config.yaml`. One deployment can keep any number of services alive.
 
 ```yaml
 interval: 1m
@@ -53,7 +53,7 @@ services:
 ## Quick start (Compose)
 
 ```bash
-cp keepalive.example.yaml keepalive.yaml
+cp config.example.yml config.yml
 docker compose up -d --build
 ```
 
@@ -62,18 +62,25 @@ docker compose up -d --build
 ```bash
 docker build -t keepalive:local .
 docker run -d --name keepalive --restart unless-stopped \
-  -v "$PWD/keepalive.yaml:/keepalive.yaml:ro" \
+  -v "$PWD/config.yml:/config.yml:ro" \
   keepalive:local
 ```
 
-If your host config file is named `keepalive.yml`, mount it to `/keepalive.yml` instead.
+If you prefer to mount the config into a working directory instead of the container root, set the container working directory and mount the file there:
+
+```bash
+docker run -d --name keepalive --restart unless-stopped \
+  --workdir /workspace \
+  -v "$PWD/config.yml:/workspace/config.yml:ro" \
+  keepalive:local
+```
 
 ## Quick start (local)
 
 ```bash
 git clone https://github.com/tiennm99/keepalive
 cd keepalive
-cp keepalive.example.yaml keepalive.yaml
+cp config.example.yml config.yml
 go run .
 ```
 
@@ -104,7 +111,7 @@ Seed the value with your configured `counter_key` when it is not `counter`. MySQ
    ```go
    func init() { Registry["<name>"] = func(cfg Config) (Adapter, error) { return &myAdapter{}, nil } }
    ```
-4. Add an `import _ "your driver"` if needed, and the adapter config keys to `keepalive.example.yaml` and the table above.
+4. Add an `import _ "your driver"` if needed, and the adapter config keys to `config.example.yml` and the table above.
 
 ## Migrated from
 
