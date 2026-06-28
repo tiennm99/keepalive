@@ -93,7 +93,7 @@ func (a *couchbaseAdapter) Connect(ctx context.Context) error {
 	}
 	b := cluster.Bucket(a.bucket)
 	if err := b.WaitUntilReady(a.readyTimeout, &gocb.WaitUntilReadyOptions{Context: ctx}); err != nil {
-		return err
+		return a.bucketReadyError(err)
 	}
 	if err := a.ensureScopeAndCollection(ctx, b); err != nil {
 		return err

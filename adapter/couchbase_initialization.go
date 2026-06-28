@@ -9,7 +9,16 @@ import (
 	"github.com/couchbase/gocb/v2"
 )
 
-const defaultCouchbaseReadyTimeout = 30 * time.Second
+const defaultCouchbaseReadyTimeout = 2 * time.Minute
+
+func (a *couchbaseAdapter) bucketReadyError(err error) error {
+	return fmt.Errorf(
+		"bucket %q was not ready after %s: %w; check bucket_name, connection_string, database user permissions, and Capella allowed IP/network access; increase ready_timeout if the cluster or bucket was just created",
+		a.bucket,
+		a.readyTimeout,
+		err,
+	)
+}
 
 func (a *couchbaseAdapter) ensureBucket(ctx context.Context, cluster *gocb.Cluster) error {
 	if a.bucketRAMQuotaMB == 0 {
