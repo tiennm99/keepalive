@@ -1,0 +1,9 @@
+services:
+  keepalive:
+    build:
+      context: .
+    image: keepalive:local
+    container_name: keepalive
+    restart: unless-stopped
+    volumes:
+      - ./keepalive.yaml:/keepalive.yaml:ro

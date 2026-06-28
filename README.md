@@ -50,12 +50,20 @@ services:
 | `mongodb`    | `go.mongodb.org/mongo-driver/v2`    | `uri`, `database`, `collection` |
 | `couchbase`  | `github.com/couchbase/gocb/v2`      | `connection_string`, `username`, `password`, `bucket_name`, `scope_name`, `collection_name` |
 
+## Quick start (Compose)
+
+```bash
+cp keepalive.example.yaml keepalive.yaml
+docker compose up -d --build
+```
+
 ## Quick start (Docker)
 
 ```bash
+docker build -t keepalive:local .
 docker run -d --name keepalive --restart unless-stopped \
   -v "$PWD/keepalive.yaml:/keepalive.yaml:ro" \
-  ghcr.io/tiennm99/keepalive:latest
+  keepalive:local
 ```
 
 ## Quick start (local)
