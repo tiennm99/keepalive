@@ -5,11 +5,11 @@ go 1.25.0
 require (
 	github.com/couchbase/gocb/v2 v2.12.3
 	github.com/go-sql-driver/mysql v1.10.0
-	github.com/joho/godotenv v1.5.1
 	github.com/lib/pq v1.12.3
 	github.com/redis/go-redis/v9 v9.19.0
 	github.com/valkey-io/valkey-go v1.0.75
 	go.mongodb.org/mongo-driver/v2 v2.6.0
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (

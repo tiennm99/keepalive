@@ -9,36 +9,45 @@ import (
 )
 
 func init() {
-	Registry["mongodb"] = func() (Adapter, error) { return &mongoAdapter{}, nil }
+	Registry["mongodb"] = func(cfg Config) (Adapter, error) {
+		uri, err := cfg.Required("uri")
+		if err != nil {
+			return nil, err
+		}
+		dbName, err := cfg.Required("database")
+		if err != nil {
+			return nil, err
+		}
+		collName, err := cfg.Required("collection")
+		if err != nil {
+			return nil, err
+		}
+		return &mongoAdapter{
+			uri:      uri,
+			dbName:   dbName,
+			collName: collName,
+			docID:    cfg.Optional("counter_key", "counter"),
+		}, nil
+	}
 	Registry["mongo"] = Registry["mongodb"]
 }
 
 type mongoAdapter struct {
-	client *mongo.Client
-	coll   *mongo.Collection
-	docID  string
+	client   *mongo.Client
+	coll     *mongo.Collection
+	uri      string
+	dbName   string
+	collName string
+	docID    string
 }
 
 func (a *mongoAdapter) Connect(ctx context.Context) error {
-	uri, err := envOrFail("KEEPALIVE_MONGODB_URI")
-	if err != nil {
-		return err
-	}
-	dbName, err := envOrFail("KEEPALIVE_MONGODB_DATABASE")
-	if err != nil {
-		return err
-	}
-	collName, err := envOrFail("KEEPALIVE_MONGODB_COLLECTION")
-	if err != nil {
-		return err
-	}
-	client, err := mongo.Connect(options.Client().ApplyURI(uri))
+	client, err := mongo.Connect(options.Client().ApplyURI(a.uri))
 	if err != nil {
 		return err
 	}
 	a.client = client
-	a.coll = client.Database(dbName).Collection(collName)
-	a.docID = envOr("KEEPALIVE_COUNTER_KEY", "counter")
+	a.coll = client.Database(a.dbName).Collection(a.collName)
 	return client.Ping(ctx, nil)
 }
 

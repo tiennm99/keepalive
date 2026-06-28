@@ -7,25 +7,30 @@ import (
 )
 
 func init() {
-	Registry["redis"] = func() (Adapter, error) { return &redisAdapter{}, nil }
+	Registry["redis"] = func(cfg Config) (Adapter, error) {
+		url, err := cfg.Required("url")
+		if err != nil {
+			return nil, err
+		}
+		return &redisAdapter{
+			url: url,
+			key: cfg.Optional("counter_key", "counter"),
+		}, nil
+	}
 }
 
 type redisAdapter struct {
 	client *redis.Client
+	url    string
 	key    string
 }
 
 func (a *redisAdapter) Connect(ctx context.Context) error {
-	url, err := envOrFail("KEEPALIVE_REDIS_URL")
-	if err != nil {
-		return err
-	}
-	opt, err := redis.ParseURL(url)
+	opt, err := redis.ParseURL(a.url)
 	if err != nil {
 		return err
 	}
 	a.client = redis.NewClient(opt)
-	a.key = envOr("KEEPALIVE_COUNTER_KEY", "counter")
 	return a.client.Ping(ctx).Err()
 }
 

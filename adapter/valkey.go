@@ -7,20 +7,26 @@ import (
 )
 
 func init() {
-	Registry["valkey"] = func() (Adapter, error) { return &valkeyAdapter{}, nil }
+	Registry["valkey"] = func(cfg Config) (Adapter, error) {
+		url, err := cfg.Required("url")
+		if err != nil {
+			return nil, err
+		}
+		return &valkeyAdapter{
+			url: url,
+			key: cfg.Optional("counter_key", "counter"),
+		}, nil
+	}
 }
 
 type valkeyAdapter struct {
 	client valkey.Client
+	url    string
 	key    string
 }
 
 func (a *valkeyAdapter) Connect(_ context.Context) error {
-	url, err := envOrFail("KEEPALIVE_VALKEY_URL")
-	if err != nil {
-		return err
-	}
-	opt, err := valkey.ParseURL(url)
+	opt, err := valkey.ParseURL(a.url)
 	if err != nil {
 		return err
 	}
@@ -29,7 +35,6 @@ func (a *valkeyAdapter) Connect(_ context.Context) error {
 		return err
 	}
 	a.client = client
-	a.key = envOr("KEEPALIVE_COUNTER_KEY", "counter")
 	return nil
 }
 

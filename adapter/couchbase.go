@@ -8,58 +8,72 @@ import (
 )
 
 func init() {
-	Registry["couchbase"] = func() (Adapter, error) { return &couchbaseAdapter{}, nil }
+	Registry["couchbase"] = func(cfg Config) (Adapter, error) {
+		conn, err := cfg.Required("connection_string")
+		if err != nil {
+			return nil, err
+		}
+		user, err := cfg.Required("username")
+		if err != nil {
+			return nil, err
+		}
+		pass, err := cfg.Required("password")
+		if err != nil {
+			return nil, err
+		}
+		bucket, err := cfg.Required("bucket_name")
+		if err != nil {
+			return nil, err
+		}
+		scope, err := cfg.Required("scope_name")
+		if err != nil {
+			return nil, err
+		}
+		collName, err := cfg.Required("collection_name")
+		if err != nil {
+			return nil, err
+		}
+		return &couchbaseAdapter{
+			conn:     conn,
+			user:     user,
+			pass:     pass,
+			bucket:   bucket,
+			scope:    scope,
+			collName: collName,
+			docID:    cfg.Optional("counter_key", "counter"),
+		}, nil
+	}
 }
 
 type couchbaseAdapter struct {
-	cluster *gocb.Cluster
-	coll    *gocb.Collection
-	docID   string
+	cluster  *gocb.Cluster
+	coll     *gocb.Collection
+	conn     string
+	user     string
+	pass     string
+	bucket   string
+	scope    string
+	collName string
+	docID    string
 }
 
 func (a *couchbaseAdapter) Connect(_ context.Context) error {
-	conn, err := envOrFail("KEEPALIVE_COUCHBASE_CONNECTION_STRING")
-	if err != nil {
-		return err
-	}
-	user, err := envOrFail("KEEPALIVE_COUCHBASE_USERNAME")
-	if err != nil {
-		return err
-	}
-	pass, err := envOrFail("KEEPALIVE_COUCHBASE_PASSWORD")
-	if err != nil {
-		return err
-	}
-	bucket, err := envOrFail("KEEPALIVE_COUCHBASE_BUCKET_NAME")
-	if err != nil {
-		return err
-	}
-	scope, err := envOrFail("KEEPALIVE_COUCHBASE_SCOPE_NAME")
-	if err != nil {
-		return err
-	}
-	collName, err := envOrFail("KEEPALIVE_COUCHBASE_COLLECTION_NAME")
-	if err != nil {
-		return err
-	}
-
 	opts := gocb.ClusterOptions{
-		Authenticator: gocb.PasswordAuthenticator{Username: user, Password: pass},
+		Authenticator: gocb.PasswordAuthenticator{Username: a.user, Password: a.pass},
 	}
 	if err := opts.ApplyProfile(gocb.ClusterConfigProfileWanDevelopment); err != nil {
 		return err
 	}
-	cluster, err := gocb.Connect(conn, opts)
+	cluster, err := gocb.Connect(a.conn, opts)
 	if err != nil {
 		return err
 	}
-	b := cluster.Bucket(bucket)
+	b := cluster.Bucket(a.bucket)
 	if err := b.WaitUntilReady(5*time.Second, nil); err != nil {
 		return err
 	}
 	a.cluster = cluster
-	a.coll = b.Scope(scope).Collection(collName)
-	a.docID = envOr("KEEPALIVE_COUNTER_KEY", "counter")
+	a.coll = b.Scope(a.scope).Collection(a.collName)
 	return nil
 }
 

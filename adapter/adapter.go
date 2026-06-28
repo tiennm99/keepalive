@@ -17,16 +17,33 @@ type Adapter interface {
 	Close(ctx context.Context) error
 }
 
-type Factory func() (Adapter, error)
+type Config map[string]string
+
+func (c Config) Required(name string) (string, error) {
+	v, ok := c[name]
+	if !ok || v == "" {
+		return "", fmt.Errorf("config %s is required", name)
+	}
+	return v, nil
+}
+
+func (c Config) Optional(name, def string) string {
+	if v, ok := c[name]; ok && v != "" {
+		return v
+	}
+	return def
+}
+
+type Factory func(Config) (Adapter, error)
 
 var Registry = map[string]Factory{}
 
-func New(dbType string) (Adapter, error) {
-	f, ok := Registry[dbType]
+func New(adapterType string, cfg Config) (Adapter, error) {
+	f, ok := Registry[adapterType]
 	if !ok {
-		return nil, fmt.Errorf("unknown adapter %q (known: %v)", dbType, Known())
+		return nil, fmt.Errorf("unknown adapter %q (known: %v)", adapterType, Known())
 	}
-	return f()
+	return f(cfg)
 }
 
 func Known() []string {

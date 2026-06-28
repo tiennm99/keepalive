@@ -1,0 +1,27 @@
+# Optional defaults for every service.
+interval: 1m
+counter_key: counter
+
+services:
+  - adapter: redis
+    config:
+      url: redis://default@redis-a.example.com:6379
+
+  - adapter: redis
+    config:
+      url: redis://default@redis-b.example.com:6379
+
+  - adapter: mongodb
+    config:
+      uri: mongodb+srv://user:pass@mongo-a.example.com
+      database: keepalive
+      collection: counter
+
+  - adapter: couchbase
+    config:
+      connection_string: couchbases://couchbase-a.example.com
+      username: user
+      password: pass
+      bucket_name: keepalive
+      scope_name: _default
+      collection_name: _default

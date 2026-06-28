@@ -6,27 +6,55 @@ The current adapters perform cheap datastore writes for Redis Cloud, Valkey, Aiv
 
 Successor to the `*-keepalive` family: one binary, one image, six datastore adapters.
 
+## Configuration
+
+By default, keepalive reads `keepalive.yaml` from the current working directory. One deployment can keep any number of services alive.
+
+```yaml
+interval: 1m
+counter_key: counter
+
+services:
+  - adapter: redis
+    config:
+      url: redis://default@redis-a.example.com:6379
+
+  - adapter: mongodb
+    config:
+      uri: mongodb+srv://user:pass@mongo-a.example.com
+      database: keepalive
+      collection: counter
+
+  - adapter: couchbase
+    config:
+      connection_string: couchbases://couchbase-a.example.com
+      username: user
+      password: pass
+      bucket_name: keepalive
+      scope_name: _default
+      collection_name: _default
+```
+
+`name` is optional. When omitted, keepalive generates a name from `adapter` and the connection host, such as `redis-redis-a-example-com`. Duplicate generated names get suffixes like `redis-redis-a-example-com-2`.
+
+`interval` and `counter_key` can be set globally or per service. Per-service values override global values.
+
 ## Supported adapters
 
-Set `KEEPALIVE_ADAPTER` to one of the values below.
-
-| `KEEPALIVE_ADAPTER` | Driver                              | Env vars |
-| ------------------- | ----------------------------------- | ------------------ |
-| `redis`             | `github.com/redis/go-redis/v9`      | `KEEPALIVE_REDIS_URL` |
-| `valkey`            | `github.com/valkey-io/valkey-go`    | `KEEPALIVE_VALKEY_URL` |
-| `postgresql`        | `github.com/lib/pq`                 | `KEEPALIVE_POSTGRESQL_URL` |
-| `mysql`             | `github.com/go-sql-driver/mysql`    | `KEEPALIVE_MYSQL_DSN` |
-| `mongodb`           | `go.mongodb.org/mongo-driver/v2`    | `KEEPALIVE_MONGODB_URI`, `KEEPALIVE_MONGODB_DATABASE`, `KEEPALIVE_MONGODB_COLLECTION` |
-| `couchbase`         | `github.com/couchbase/gocb/v2`      | `KEEPALIVE_COUCHBASE_CONNECTION_STRING`, `KEEPALIVE_COUCHBASE_USERNAME`, `KEEPALIVE_COUCHBASE_PASSWORD`, `KEEPALIVE_COUCHBASE_BUCKET_NAME`, `KEEPALIVE_COUCHBASE_SCOPE_NAME`, `KEEPALIVE_COUCHBASE_COLLECTION_NAME` |
-
-Optional: `KEEPALIVE_INTERVAL` (e.g. `30s`, `5m`; default `1m`), `KEEPALIVE_COUNTER_KEY` (default `counter`).
+| `adapter`    | Driver                              | `config` keys |
+| ------------ | ----------------------------------- | ------------- |
+| `redis`      | `github.com/redis/go-redis/v9`      | `url` |
+| `valkey`     | `github.com/valkey-io/valkey-go`    | `url` |
+| `postgresql` | `github.com/lib/pq`                 | `url` |
+| `mysql`      | `github.com/go-sql-driver/mysql`    | `dsn` |
+| `mongodb`    | `go.mongodb.org/mongo-driver/v2`    | `uri`, `database`, `collection` |
+| `couchbase`  | `github.com/couchbase/gocb/v2`      | `connection_string`, `username`, `password`, `bucket_name`, `scope_name`, `collection_name` |
 
 ## Quick start (Docker)
 
 ```bash
 docker run -d --name keepalive --restart unless-stopped \
-  -e KEEPALIVE_ADAPTER=redis \
-  -e KEEPALIVE_REDIS_URL='redis://default@host:6379' \
+  -v "$PWD/keepalive.yaml:/keepalive.yaml:ro" \
   ghcr.io/tiennm99/keepalive:latest
 ```
 
@@ -35,13 +63,13 @@ docker run -d --name keepalive --restart unless-stopped \
 ```bash
 git clone https://github.com/tiennm99/keepalive
 cd keepalive
-cp .env.example .env       # then edit KEEPALIVE_ADAPTER + the driver's env vars
+cp keepalive.example.yaml keepalive.yaml
 go run .
 ```
 
 ## How it works
 
-On every tick the chosen adapter performs the cheapest write that proves the cluster is alive. `KEEPALIVE_COUNTER_KEY` selects the key/doc ID and defaults to `counter`.
+On every tick the chosen adapter performs the cheapest write that proves the cluster is alive. `counter_key` selects the key/doc ID and defaults to `counter`.
 
 - **Redis/Valkey** — `INCR key`
 - **PostgreSQL** — `UPDATE keepalive SET value = value + 1 WHERE key = $1 RETURNING value`
@@ -56,7 +84,7 @@ CREATE TABLE keepalive (key TEXT PRIMARY KEY, value BIGINT NOT NULL DEFAULT 0);
 INSERT INTO keepalive (key, value) VALUES ('counter', 0);
 ```
 
-Seed the value with your configured `KEEPALIVE_COUNTER_KEY` when it is not `counter`. MySQL uses backticked identifiers — see `adapter/mysql.go`.
+Seed the value with your configured `counter_key` when it is not `counter`. MySQL uses backticked identifiers — see `adapter/mysql.go`.
 
 ## Adding a new adapter
 
@@ -64,9 +92,9 @@ Seed the value with your configured `KEEPALIVE_COUNTER_KEY` when it is not `coun
 2. Implement the `Adapter` interface in `adapter/adapter.go` (`Connect`, `Increment`, `Close`).
 3. Register the factory in `init()`:
    ```go
-   func init() { Registry["<name>"] = func() (Adapter, error) { return &myAdapter{}, nil } }
+   func init() { Registry["<name>"] = func(cfg Config) (Adapter, error) { return &myAdapter{}, nil } }
    ```
-4. Add an `import _ "your driver"` if needed, and the `KEEPALIVE_*` env vars to `.env.example` and the table above.
+4. Add an `import _ "your driver"` if needed, and the adapter config keys to `keepalive.example.yaml` and the table above.
 
 ## Migrated from
 

@@ -9,20 +9,26 @@ import (
 )
 
 func init() {
-	Registry["mysql"] = func() (Adapter, error) { return &mysqlAdapter{}, nil }
+	Registry["mysql"] = func(cfg Config) (Adapter, error) {
+		dsn, err := cfg.Required("dsn")
+		if err != nil {
+			return nil, err
+		}
+		return &mysqlAdapter{
+			dsn: dsn,
+			key: cfg.Optional("counter_key", "counter"),
+		}, nil
+	}
 }
 
 type mysqlAdapter struct {
 	db  *sql.DB
+	dsn string
 	key string
 }
 
 func (a *mysqlAdapter) Connect(ctx context.Context) error {
-	dsn, err := envOrFail("KEEPALIVE_MYSQL_DSN")
-	if err != nil {
-		return err
-	}
-	db, err := sql.Open("mysql", dsn)
+	db, err := sql.Open("mysql", a.dsn)
 	if err != nil {
 		return err
 	}
@@ -30,7 +36,6 @@ func (a *mysqlAdapter) Connect(ctx context.Context) error {
 	db.SetMaxOpenConns(10)
 	db.SetMaxIdleConns(10)
 	a.db = db
-	a.key = envOr("KEEPALIVE_COUNTER_KEY", "counter")
 	return a.db.PingContext(ctx)
 }
 

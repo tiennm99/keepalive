@@ -5,86 +5,48 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"strconv"
+	"sync"
 	"syscall"
-	"time"
 
-	"github.com/joho/godotenv"
 	"github.com/tiennm99/keepalive/adapter"
 )
 
-const (
-	envAdapter  = "KEEPALIVE_ADAPTER"
-	envInterval = "KEEPALIVE_INTERVAL"
-)
+const defaultConfigFile = "keepalive.yaml"
 
 func main() {
-	if err := godotenv.Load(); err != nil {
-		log.Println("note: .env not loaded, relying on process env")
-	}
-
-	dbType := os.Getenv(envAdapter)
-	if dbType == "" {
-		log.Fatalf("%s is required (known: %v)", envAdapter, adapter.Known())
-	}
-
-	interval := parseInterval(os.Getenv(envInterval), time.Minute)
-
-	a, err := adapter.New(dbType)
+	services, err := loadConfigFile(defaultConfigFile)
 	if err != nil {
-		log.Fatalf("init adapter: %v", err)
+		log.Fatalf("load config: %v", err)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	if err := a.Connect(ctx); err != nil {
-		log.Fatalf("connect: %v", err)
+	running := make([]runningService, 0, len(services))
+	for _, svcConfig := range services {
+		a, err := adapter.New(svcConfig.AdapterType, svcConfig.Config)
+		if err != nil {
+			cancel()
+			closeServices(running)
+			log.Fatalf("[%s] init adapter: %v", svcConfig.Name, err)
+		}
+		if err := a.Connect(ctx); err != nil {
+			cancel()
+			closeServices(running)
+			log.Fatalf("[%s] connect: %v", svcConfig.Name, err)
+		}
+		running = append(running, runningService{config: svcConfig, adapter: a})
+		log.Printf("[%s] keepalive: %s every %s", svcConfig.Name, svcConfig.AdapterType, svcConfig.Interval)
 	}
-	defer func() {
-		shutdownCtx, c := context.WithTimeout(context.Background(), 5*time.Second)
-		defer c()
-		if err := a.Close(shutdownCtx); err != nil {
-			log.Printf("close: %v", err)
-		}
-	}()
 
-	log.Printf("keepalive: %s every %s", dbType, interval)
-
-	go func() {
-		ticker := time.NewTicker(interval)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				tickCtx, tcancel := context.WithTimeout(ctx, 3*time.Second)
-				count, err := a.Increment(tickCtx)
-				tcancel()
-				if err != nil {
-					log.Printf("increment: %v", err)
-					continue
-				}
-				log.Printf("counter: %d", count)
-			}
-		}
-	}()
+	var wg sync.WaitGroup
+	for _, svc := range running {
+		runService(ctx, &wg, svc)
+	}
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	<-sigCh
-}
 
-func parseInterval(s string, def time.Duration) time.Duration {
-	if s == "" {
-		return def
-	}
-	if d, err := time.ParseDuration(s); err == nil {
-		return d
-	}
-	if n, err := strconv.Atoi(s); err == nil {
-		return time.Duration(n) * time.Second
-	}
-	return def
+	cancel()
+	wg.Wait()
+	closeServices(running)
 }

@@ -8,26 +8,31 @@ import (
 )
 
 func init() {
-	Registry["postgresql"] = func() (Adapter, error) { return &postgresAdapter{}, nil }
+	Registry["postgresql"] = func(cfg Config) (Adapter, error) {
+		url, err := cfg.Required("url")
+		if err != nil {
+			return nil, err
+		}
+		return &postgresAdapter{
+			url: url,
+			key: cfg.Optional("counter_key", "counter"),
+		}, nil
+	}
 	Registry["postgres"] = Registry["postgresql"]
 }
 
 type postgresAdapter struct {
 	db  *sql.DB
+	url string
 	key string
 }
 
 func (a *postgresAdapter) Connect(ctx context.Context) error {
-	uri, err := envOrFail("KEEPALIVE_POSTGRESQL_URL")
-	if err != nil {
-		return err
-	}
-	db, err := sql.Open("postgres", uri)
+	db, err := sql.Open("postgres", a.url)
 	if err != nil {
 		return err
 	}
 	a.db = db
-	a.key = envOr("KEEPALIVE_COUNTER_KEY", "counter")
 	return a.db.PingContext(ctx)
 }
 
