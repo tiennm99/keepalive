@@ -33,8 +33,14 @@ func TestConfigExampleYMLParses(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadConfigFile returned error: %v", err)
 	}
-	if len(services) != 4 {
-		t.Fatalf("len(services) = %d, want 4", len(services))
+	wantAdapters := []string{"redis", "valkey", "postgresql", "mysql", "mongodb", "couchbase"}
+	if len(services) != len(wantAdapters) {
+		t.Fatalf("len(services) = %d, want %d", len(services), len(wantAdapters))
+	}
+	for i, want := range wantAdapters {
+		if services[i].AdapterType != want {
+			t.Fatalf("services[%d].AdapterType = %q, want %q", i, services[i].AdapterType, want)
+		}
 	}
 }
 
