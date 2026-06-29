@@ -22,8 +22,9 @@ services:
       namespace: keepalive
 
   - adapter: valkey
-    # One service can override the global interval.
+    # One service can override the global interval and counter key.
     interval: 30s
+    counter_key: valkey-counter
     config:
       url: valkey://default@valkey-a.example.com:6379
 
@@ -56,8 +57,11 @@ services:
 `interval` at the root sets the default schedule for every service and defaults to `1m`.
 `interval` inside a service overrides that default only for that service.
 In the example above, every service runs every `1m` except `valkey`, which runs every `30s`.
+Interval values use Go duration syntax, for example `30s`, `5m`, `1h`, `1h30m`, or `1.5h`. Plain integers are treated as seconds, so `90` means `90s`.
 
-`counter_key` can be set globally or per service. Per-service values override global values.
+`counter_key` at the root sets the default counter key for every service and defaults to `counter`.
+`counter_key` inside a service overrides that default only for that service.
+In the example above, every service writes `counter` except `valkey`, which writes `valkey-counter`.
 
 ## Supported adapters
 

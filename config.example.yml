@@ -1,4 +1,5 @@
 # Optional default interval shared by every service.
+# Examples: 30s, 5m, 1h, 1h30m, 1.5h, or 90 for 90 seconds.
 interval: 1m
 counter_key: counter
 
@@ -9,8 +10,9 @@ services:
       namespace: keepalive
 
   - adapter: valkey
-    # Example: this service runs every 30s while others use the root interval.
+    # Example: this service overrides root interval and counter_key.
     interval: 30s
+    counter_key: valkey-counter
     config:
       url: valkey://default@valkey-a.example.com:6379
 

@@ -138,7 +138,7 @@ func parseConfigInterval(field, value string, def time.Duration) (time.Duration,
 		}
 		return d, nil
 	}
-	return 0, fmt.Errorf("%s must be a duration like 30s or an integer number of seconds", field)
+	return 0, fmt.Errorf("%s must be a duration like 30s, 5m, or 1h30m, or an integer number of seconds", field)
 }
 
 func valueOrDefault(value, def string) string {

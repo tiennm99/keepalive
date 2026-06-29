@@ -51,6 +51,15 @@ func TestConfigExampleYMLParses(t *testing.T) {
 	if services[2].Interval != time.Minute {
 		t.Fatalf("services[2].Interval = %s, want 1m", services[2].Interval)
 	}
+	if services[0].Config["counter_key"] != "counter" {
+		t.Fatalf("services[0] counter_key = %q, want counter", services[0].Config["counter_key"])
+	}
+	if services[1].Config["counter_key"] != "valkey-counter" {
+		t.Fatalf("services[1] counter_key = %q, want valkey-counter", services[1].Config["counter_key"])
+	}
+	if services[2].Config["counter_key"] != "counter" {
+		t.Fatalf("services[2] counter_key = %q, want counter", services[2].Config["counter_key"])
+	}
 }
 
 func TestFirstExistingConfigFileFindsYMLFallback(t *testing.T) {
@@ -153,6 +162,26 @@ func TestNormalizeConfigAppliesGlobalAndServiceDefaults(t *testing.T) {
 	}
 	if services[1].Config["counter_key"] != "local-counter" {
 		t.Fatalf("services[1] counter_key = %q", services[1].Config["counter_key"])
+	}
+}
+
+func TestNormalizeConfigParsesCompoundAndFractionalIntervals(t *testing.T) {
+	services, err := normalizeConfig(appConfig{
+		Interval: "1h30m",
+		Services: []serviceFileConfig{
+			{Adapter: "redis", Config: map[string]string{"url": "redis://cache.example.com:6379"}},
+			{Adapter: "redis", Interval: "1.5h", Config: map[string]string{"url": "redis://other.example.com:6379"}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("normalizeConfig returned error: %v", err)
+	}
+
+	if services[0].Interval != 90*time.Minute {
+		t.Fatalf("services[0].Interval = %s, want 1h30m", services[0].Interval)
+	}
+	if services[1].Interval != 90*time.Minute {
+		t.Fatalf("services[1].Interval = %s, want 1.5h", services[1].Interval)
 	}
 }
 
