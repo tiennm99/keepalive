@@ -11,6 +11,7 @@ Successor to the `*-keepalive` family: one binary, one image, six datastore adap
 By default, keepalive reads the first config file it finds: `config.yml`, `config.yaml`, `/config.yml`, then `/config.yaml`. One deployment can keep any number of services alive.
 
 ```yaml
+# Default interval for every service.
 interval: 1m
 counter_key: counter
 
@@ -21,6 +22,8 @@ services:
       namespace: keepalive
 
   - adapter: valkey
+    # One service can override the global interval.
+    interval: 30s
     config:
       url: valkey://default@valkey-a.example.com:6379
 
@@ -50,7 +53,11 @@ services:
 
 `name` is optional. When omitted, keepalive generates a name from `adapter` and the connection host, such as `redis-redis-a-example-com`. Duplicate generated names get suffixes like `redis-redis-a-example-com-2`.
 
-`interval` and `counter_key` can be set globally or per service. Per-service values override global values.
+`interval` at the root sets the default schedule for every service and defaults to `1m`.
+`interval` inside a service overrides that default only for that service.
+In the example above, every service runs every `1m` except `valkey`, which runs every `30s`.
+
+`counter_key` can be set globally or per service. Per-service values override global values.
 
 ## Supported adapters
 

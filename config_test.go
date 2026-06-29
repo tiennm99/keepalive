@@ -42,6 +42,15 @@ func TestConfigExampleYMLParses(t *testing.T) {
 			t.Fatalf("services[%d].AdapterType = %q, want %q", i, services[i].AdapterType, want)
 		}
 	}
+	if services[0].Interval != time.Minute {
+		t.Fatalf("services[0].Interval = %s, want 1m", services[0].Interval)
+	}
+	if services[1].Interval != 30*time.Second {
+		t.Fatalf("services[1].Interval = %s, want 30s", services[1].Interval)
+	}
+	if services[2].Interval != time.Minute {
+		t.Fatalf("services[2].Interval = %s, want 1m", services[2].Interval)
+	}
 }
 
 func TestFirstExistingConfigFileFindsYMLFallback(t *testing.T) {
