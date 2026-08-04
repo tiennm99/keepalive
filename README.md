@@ -135,14 +135,11 @@ For hosted Couchbase/Capella clusters, `ready_timeout` defaults to `30s`. If Cou
 
 ## Migrated from
 
-This repo replaces six single-datastore repos. All are archived with a pointer here:
-
-- [redis-keepalive](https://github.com/tiennm99/redis-keepalive)
-- [valkey-keepalive](https://github.com/tiennm99/valkey-keepalive)
-- [postgresql-keepalive](https://github.com/tiennm99/postgresql-keepalive)
-- [mysql-keepalive](https://github.com/tiennm99/mysql-keepalive)
-- [mongodb-keepalive](https://github.com/tiennm99/mongodb-keepalive)
-- [couchbase-keepalive](https://github.com/tiennm99/couchbase-keepalive)
+This repo replaces six single-datastore repos (`redis-keepalive`, `valkey-keepalive`,
+`postgresql-keepalive`, `mysql-keepalive`, `mongodb-keepalive`, `couchbase-keepalive`).
+Their full histories were absorbed into this repository — browse earlier commits to find
+each implementation under its own subfolder (`redis/`, `valkey/`, `postgresql/`, `mysql/`,
+`mongodb/`, `couchbase/`).
 
 ## License
 
