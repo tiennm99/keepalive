@@ -3,20 +3,13 @@ services:
     build:
       context: .
     restart: unless-stopped
-    # keepalive reads no environment variables: every setting lives in the
-    # config file below. Coolify still injects its dashboard variables through
-    # its generated .env, so nothing needs declaring here.
+    # keepalive is a background worker: it opens no port and serves no HTTP,
+    # so there is no `expose`, no `ports`, no domain and no healthcheck (the
+    # distroless image has no shell or HTTP client to run one anyway).
     #
-    # The app has no HTTP server. `expose` only mirrors the port the Coolify
-    # app was configured with; it publishes nothing on the host, and nothing
-    # answers on it.
-    expose:
-      - "3000"
-    # The app reads /config.yml (see config.go). Coolify turns this bind mount
-    # into an editable file storage; locally, copy config.example.yml to
-    # config.yml first. The real config holds datastore credentials, so never
-    # commit it.
+    # Every setting lives in the config file; the app reads no environment
+    # variables. The real config holds datastore credentials, so never commit
+    # it: locally, copy config.example.yml to config.yml; on Coolify, this bind
+    # mount becomes an editable file storage.
     volumes:
       - ./config.yml:/config.yml:ro
-    # No healthcheck: the distroless image ships no shell or HTTP client to
-    # run one, and the Dockerfile defines none.
