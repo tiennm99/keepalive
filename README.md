@@ -81,6 +81,8 @@ cp config.example.yml config.yml
 docker compose up -d --build
 ```
 
+`compose.yml` also deploys on Coolify with the Docker Compose build pack (compose file `/compose.yml`). Coolify turns the `./config.yml` bind mount into an editable file storage; paste your config there. Keep the real `config.yml` out of git, since it holds datastore credentials.
+
 ## Quick start (Docker)
 
 ```bash
