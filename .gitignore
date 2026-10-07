@@ -5,3 +5,4 @@ ca.pem
 /dist/
 *.test
 *.out
+config.yml
