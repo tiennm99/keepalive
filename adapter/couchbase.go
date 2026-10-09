@@ -98,33 +98,24 @@ func (a *couchbaseAdapter) Connect(ctx context.Context) error {
 	if err := a.ensureScopeAndCollection(ctx, b); err != nil {
 		return err
 	}
-	a.cluster = cluster
 	a.coll = b.Scope(a.scope).Collection(a.collName)
 	if err := a.ensureDocument(ctx); err != nil {
 		return err
 	}
+	// Set only on success: the deferred cleanup closes a failed cluster, and
+	// Close must not close it again.
+	a.cluster = cluster
 	connected = true
 	return nil
 }
 
-func (a *couchbaseAdapter) Increment(_ context.Context) (int64, error) {
-	docOut, err := a.coll.Get(a.docID, &gocb.GetOptions{})
+func (a *couchbaseAdapter) Increment(ctx context.Context) (int64, error) {
+	// One atomic server-side increment; ensureDocument seeded the counter.
+	res, err := a.coll.Binary().Increment(a.docID, &gocb.IncrementOptions{Delta: 1, Initial: 1, Context: ctx})
 	if err != nil {
-		// On first run the doc may not exist; seed at 1.
-		if _, upErr := a.coll.Upsert(a.docID, uint64(1), &gocb.UpsertOptions{}); upErr != nil {
-			return 0, upErr
-		}
-		return 1, nil
-	}
-	var current uint64
-	if err := docOut.Content(&current); err != nil {
 		return 0, err
 	}
-	current++
-	if _, err := a.coll.Upsert(a.docID, current, &gocb.UpsertOptions{}); err != nil {
-		return 0, err
-	}
-	return int64(current), nil
+	return int64(res.Content()), nil
 }
 
 func (a *couchbaseAdapter) Close(_ context.Context) error {
