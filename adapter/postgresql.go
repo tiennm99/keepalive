@@ -3,6 +3,7 @@ package adapter
 import (
 	"context"
 	"database/sql"
+	"strings"
 
 	_ "github.com/lib/pq"
 )
@@ -14,7 +15,7 @@ func init() {
 			return nil, err
 		}
 		return &postgresAdapter{
-			url: url,
+			url: withDefaultConnectTimeout(url),
 			key: cfg.Optional("counter_key", "counter"),
 		}, nil
 	}
@@ -80,4 +81,21 @@ func (a *postgresAdapter) Close(_ context.Context) error {
 		return nil
 	}
 	return a.db.Close()
+}
+
+// withDefaultConnectTimeout adds connect_timeout when the DSN has none:
+// lib/pq honours the context only while dialing, so a server that accepts the
+// connection but never answers the startup handshake would hang forever.
+func withDefaultConnectTimeout(dsn string) string {
+	if strings.Contains(dsn, "connect_timeout") {
+		return dsn
+	}
+	switch {
+	case !strings.Contains(dsn, "://"):
+		return dsn + " connect_timeout=30"
+	case strings.Contains(dsn, "?"):
+		return dsn + "&connect_timeout=30"
+	default:
+		return dsn + "?connect_timeout=30"
+	}
 }

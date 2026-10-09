@@ -56,7 +56,7 @@ services:
       collection_name: _default
 ```
 
-`name` is optional. When omitted, keepalive generates a name from `adapter` and the connection host, such as `redis-redis-a-example-com`. Duplicate generated names get suffixes like `redis-redis-a-example-com-2`.
+`name` is optional. When omitted, keepalive generates a name from `adapter` and the connection host, such as `redis-redis-a-example-com`. Duplicate generated names get the first free suffix, like `redis-redis-a-example-com-2`.
 
 `interval` at the root sets the default schedule for every service and defaults to `1m`.
 `interval` inside a service overrides that default only for that service.
@@ -84,7 +84,7 @@ cp config.example.yml config.yml
 docker compose up -d --build
 ```
 
-`compose.yml` also deploys on Coolify with the Docker Compose build pack (compose file `/compose.yml`). Coolify turns the `./config.yml` bind mount into an editable file storage; paste your config there. keepalive is a background worker with no port, so leave the service without a domain. Keep the real `config.yml` out of git, since it holds datastore credentials.
+`compose.yml` also deploys on Coolify with the Docker Compose build pack (compose file `/compose.yml`). Coolify turns the `./config.yml` bind mount into an editable file storage; paste your config there. keepalive is a background worker with no port, so leave the service without a domain. Keep the real `config.yml` out of git, since it holds datastore credentials. Create `config.yml` before the first start: if the file is missing, Docker mounts an empty directory in its place and keepalive exits with an error. The container runs as user `65532`, so the file must be readable by that user (for example mode `0644`).
 
 ## Quick start (Docker)
 
@@ -123,7 +123,7 @@ On startup each adapter initializes the minimum resource it owns, then every tic
 - **MongoDB** — upsert `{_id: key, count: 0}` on connect, then `FindOneAndUpdate({_id: key}, {$inc: {count: 1}}, upsert)`
 - **Couchbase** — optionally create the bucket when `bucket_ram_quota_mb` is set, create configured scope/collection when missing, insert `key = 0` if missing, then an atomic binary `INCREMENT key`
 
-Each configured service starts independently. When a connect or a tick fails, the service logs the error, closes its connection, and reconnects after 1 minute, which also re-runs initialization (for example, recreating a dropped table). Other services in the same deployment keep running. An unknown `adapter` or a missing required `config` key stops keepalive at startup.
+Each configured service starts independently and writes once right after connecting, then once per `interval`. A connect attempt, including initialization, gives up after 1 minute; PostgreSQL URLs without `connect_timeout` get `connect_timeout=30`. When a connect or a tick fails, the service logs the error, closes its connection, and reconnects after 1 minute, which also re-runs initialization (for example, recreating a dropped table). Other services in the same deployment keep running. An unknown `adapter`, a missing required `config` key, or `counter_key` placed inside `config` stops keepalive at startup. Unknown keys elsewhere in the file, such as a misspelled `interval`, only log a warning.
 
 For hosted Couchbase/Capella clusters, `ready_timeout` defaults to `30s`. If Couchbase reports `CONNECTION_ERROR`, check the connection string, bucket name, database user permissions, and Capella allowed IP/network access.
 

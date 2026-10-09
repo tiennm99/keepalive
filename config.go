@@ -1,8 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"io"
+	"log"
 	"os"
 	"strconv"
 	"strings"
@@ -55,7 +58,22 @@ func loadConfigFile(path string) ([]serviceConfig, error) {
 	if err := yaml.Unmarshal(data, &raw); err != nil {
 		return nil, fmt.Errorf("parse config: %w", err)
 	}
+	if err := checkUnknownFields(data); err != nil {
+		log.Printf("warning: %s: %v; unknown keys are ignored", path, err)
+	}
 	return normalizeConfig(raw)
+}
+
+// checkUnknownFields reports keys that appConfig does not define, such as a
+// misspelled interval. Keys under a service's config map are not checked.
+func checkUnknownFields(data []byte) error {
+	decoder := yaml.NewDecoder(bytes.NewReader(data))
+	decoder.KnownFields(true)
+	var raw appConfig
+	if err := decoder.Decode(&raw); err != nil && !errors.Is(err, io.EOF) {
+		return err
+	}
+	return nil
 }
 
 func defaultConfigFile() (string, error) {
@@ -64,7 +82,11 @@ func defaultConfigFile() (string, error) {
 
 func firstExistingConfigFile(paths []string) (string, error) {
 	for _, path := range paths {
-		if _, err := os.Stat(path); err == nil {
+		if info, err := os.Stat(path); err == nil {
+			if info.IsDir() {
+				// Docker creates a missing bind-mount source as a directory.
+				return "", fmt.Errorf("%s is a directory, not a config file; create the config file before starting the container", path)
+			}
 			return path, nil
 		} else if !errors.Is(err, os.ErrNotExist) {
 			return "", err
@@ -85,7 +107,7 @@ func normalizeConfig(raw appConfig) ([]serviceConfig, error) {
 	globalCounterKey := valueOrDefault(raw.CounterKey, defaultCounterKey)
 
 	services := make([]serviceConfig, 0, len(raw.Services))
-	usedNames := map[string]int{}
+	usedNames := map[string]bool{}
 
 	for i, rawService := range raw.Services {
 		servicePath := fmt.Sprintf("services[%d]", i)
@@ -99,6 +121,9 @@ func normalizeConfig(raw appConfig) ([]serviceConfig, error) {
 			return nil, err
 		}
 
+		if _, ok := rawService.Config["counter_key"]; ok {
+			return nil, fmt.Errorf("%s.config.counter_key is not supported; set counter_key on the service or at the root", servicePath)
+		}
 		cfg := adapter.Config{}
 		for key, value := range rawService.Config {
 			cfg[key] = value

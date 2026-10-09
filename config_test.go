@@ -214,3 +214,73 @@ func TestNormalizeConfigRejectsMissingAdapterConfigKey(t *testing.T) {
 		t.Fatalf("err = %v, want missing collection error", err)
 	}
 }
+
+func TestNormalizeConfigSkipsSuffixTakenByExplicitName(t *testing.T) {
+	services, err := normalizeConfig(appConfig{
+		Services: []serviceFileConfig{
+			{Name: "redis-cache-example-com-2", Adapter: "redis", Config: map[string]string{"url": "redis://other.example.com:6379"}},
+			{Adapter: "redis", Config: map[string]string{"url": "redis://cache.example.com:6379"}},
+			{Adapter: "redis", Config: map[string]string{"url": "redis://cache.example.com:6379"}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("normalizeConfig returned error: %v", err)
+	}
+	if services[2].Name != "redis-cache-example-com-3" {
+		t.Fatalf("services[2].Name = %q, want redis-cache-example-com-3", services[2].Name)
+	}
+}
+
+func TestNormalizeConfigRejectsExplicitNameThatDuplicatesSuffixedName(t *testing.T) {
+	_, err := normalizeConfig(appConfig{
+		Services: []serviceFileConfig{
+			{Adapter: "redis", Config: map[string]string{"url": "redis://cache.example.com:6379"}},
+			{Adapter: "redis", Config: map[string]string{"url": "redis://cache.example.com:6379"}},
+			{Name: "redis-cache-example-com-2", Adapter: "redis", Config: map[string]string{"url": "redis://other.example.com:6379"}},
+		},
+	})
+	if err == nil {
+		t.Fatal("normalizeConfig returned nil error")
+	}
+}
+
+func TestNormalizeConfigRejectsCounterKeyInsideConfig(t *testing.T) {
+	_, err := normalizeConfig(appConfig{Services: []serviceFileConfig{
+		{Adapter: "redis", Config: map[string]string{"url": "redis://cache.example.com:6379", "counter_key": "x"}},
+	}})
+	if err == nil || !strings.Contains(err.Error(), "counter_key") {
+		t.Fatalf("err = %v, want counter_key error", err)
+	}
+}
+
+func TestFirstExistingConfigFileRejectsDirectory(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yml")
+	if err := os.Mkdir(path, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	_, err := firstExistingConfigFile([]string{path})
+	if err == nil || !strings.Contains(err.Error(), "directory") {
+		t.Fatalf("err = %v, want directory error", err)
+	}
+}
+
+func TestCheckUnknownFieldsReportsTypos(t *testing.T) {
+	err := checkUnknownFields([]byte("intervall: 1m\nservices:\n  - adapter: redis\n    couter_key: x\n    config:\n      url: redis://cache.example.com\n      anything: goes\n"))
+	if err == nil || !strings.Contains(err.Error(), "intervall") || !strings.Contains(err.Error(), "couter_key") {
+		t.Fatalf("err = %v, want both unknown keys reported", err)
+	}
+	if err := checkUnknownFields([]byte("interval: 1m\nservices:\n  - adapter: redis\n    config:\n      url: redis://cache.example.com\n")); err != nil {
+		t.Fatalf("valid config reported: %v", err)
+	}
+}
+
+func TestLoadConfigFileWarnsButAcceptsUnknownKeys(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yml")
+	if err := os.WriteFile(path, []byte("intervall: 1m\nservices:\n  - adapter: redis\n    config:\n      url: redis://cache.example.com\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := loadConfigFile(path); err != nil {
+		t.Fatalf("loadConfigFile returned error: %v", err)
+	}
+}

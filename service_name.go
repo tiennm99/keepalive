@@ -9,26 +9,29 @@ import (
 	"github.com/tiennm99/keepalive/adapter"
 )
 
-func normalizeServiceName(rawName, adapterType string, cfg adapter.Config, usedNames map[string]int, servicePath string) (string, error) {
+// normalizeServiceName returns a unique service name and records it in
+// usedNames. Explicit names must be unique; generated names take the first
+// free numeric suffix.
+func normalizeServiceName(rawName, adapterType string, cfg adapter.Config, usedNames map[string]bool, servicePath string) (string, error) {
 	if strings.TrimSpace(rawName) != "" {
 		name := slugify(rawName)
 		if name == "" {
 			return "", fmt.Errorf("%s.name must contain at least one letter or number", servicePath)
 		}
-		if usedNames[name] > 0 {
+		if usedNames[name] {
 			return "", fmt.Errorf("%s.name %q duplicates another service name", servicePath, name)
 		}
-		usedNames[name]++
+		usedNames[name] = true
 		return name, nil
 	}
 
 	base := generatedServiceName(adapterType, cfg)
-	count := usedNames[base] + 1
-	usedNames[base] = count
-	if count == 1 {
-		return base, nil
+	name := base
+	for n := 2; usedNames[name]; n++ {
+		name = fmt.Sprintf("%s-%d", base, n)
 	}
-	return fmt.Sprintf("%s-%d", base, count), nil
+	usedNames[name] = true
+	return name, nil
 }
 
 func generatedServiceName(adapterType string, cfg adapter.Config) string {

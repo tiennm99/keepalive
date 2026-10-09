@@ -164,3 +164,40 @@ func TestRedactURLErrorKeepsOtherErrors(t *testing.T) {
 		t.Fatalf("redactURLError changed a non-URL error: %v", got)
 	}
 }
+
+type countingAdapter struct{ increments *atomic.Int32 }
+
+func (a *countingAdapter) Connect(context.Context) error { return nil }
+func (a *countingAdapter) Increment(context.Context) (int64, error) {
+	return int64(a.increments.Add(1)), nil
+}
+func (a *countingAdapter) Close(context.Context) error { return nil }
+
+func TestRunServiceIncrementsRightAfterConnect(t *testing.T) {
+	var increments atomic.Int32
+	adapter.Registry["first-tick-test"] = func(adapter.Config) (adapter.Adapter, error) {
+		return &countingAdapter{increments: &increments}, nil
+	}
+	defer delete(adapter.Registry, "first-tick-test")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	var wg sync.WaitGroup
+	runService(ctx, &wg, serviceConfig{
+		Name:        "first-tick-test",
+		AdapterType: "first-tick-test",
+		Interval:    time.Hour,
+		Config:      adapter.Config{},
+	})
+
+	deadline := time.After(time.Second)
+	for increments.Load() == 0 {
+		select {
+		case <-deadline:
+			cancel()
+			t.Fatal("no increment before the first interval")
+		case <-time.After(5 * time.Millisecond):
+		}
+	}
+	cancel()
+	wg.Wait()
+}

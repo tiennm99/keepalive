@@ -16,6 +16,10 @@ import (
 // before reconnecting, so a broken service logs at most once per delay.
 var retryDelay = time.Minute
 
+// connectTimeout bounds one connect attempt, including adapter
+// initialization. It exceeds Couchbase's default ready_timeout of 30s.
+var connectTimeout = time.Minute
+
 type runningService struct {
 	config  serviceConfig
 	adapter adapter.Adapter
@@ -33,7 +37,10 @@ func runService(ctx context.Context, wg *sync.WaitGroup, config serviceConfig) {
 				return
 			}
 
-			if err := a.Connect(ctx); err != nil {
+			connectCtx, cancel := context.WithTimeout(ctx, connectTimeout)
+			err = a.Connect(connectCtx)
+			cancel()
+			if err != nil {
 				closeService(ctx, config.Name, a)
 				if ctx.Err() != nil {
 					return
@@ -57,9 +64,14 @@ func runService(ctx context.Context, wg *sync.WaitGroup, config serviceConfig) {
 	}()
 }
 
-// runConnectedService ticks until the context ends (returning nil) or an
-// increment fails (returning that error).
+// runConnectedService increments once right away, so every (re)start writes
+// even when the interval outlasts the process, then once per interval. It
+// returns nil when the context ends, or the first increment error.
 func runConnectedService(ctx context.Context, svc runningService) error {
+	if err := incrementOnce(ctx, svc); err != nil {
+		return err
+	}
+
 	ticker := time.NewTicker(svc.config.Interval)
 	defer ticker.Stop()
 
@@ -68,15 +80,25 @@ func runConnectedService(ctx context.Context, svc runningService) error {
 		case <-ctx.Done():
 			return nil
 		case <-ticker.C:
-			tickCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
-			count, err := svc.adapter.Increment(tickCtx)
-			cancel()
-			if err != nil {
+			if err := incrementOnce(ctx, svc); err != nil {
 				return err
 			}
-			log.Printf("[%s] counter: %d", svc.config.Name, count)
 		}
 	}
+}
+
+func incrementOnce(ctx context.Context, svc runningService) error {
+	tickCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	count, err := svc.adapter.Increment(tickCtx)
+	if err != nil {
+		if ctx.Err() != nil {
+			return nil
+		}
+		return err
+	}
+	log.Printf("[%s] counter: %d", svc.config.Name, count)
+	return nil
 }
 
 func closeService(_ context.Context, name string, a adapter.Adapter) {
