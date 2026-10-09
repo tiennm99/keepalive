@@ -1,150 +1,69 @@
 # keepalive
 
-Pluggable Go daemon that periodically touches external services to prevent idle shutdowns, pauses, or cold starts.
+**Stop free-tier databases from pausing.** keepalive is a tiny Go daemon that writes to each of your hosted datastores on a schedule, so idle-shutdown policies never trigger.
 
-The current adapters perform cheap datastore writes for Redis Cloud, Valkey, Aiven, Neon, Supabase, MongoDB Atlas, Couchbase Capella, and similar hosted services.
+- **One config, many services.** Keep Redis, PostgreSQL, MySQL, MongoDB, and Couchbase instances alive from a single process.
+- **Cheapest possible write.** Each tick increments one counter; nothing else in your database is touched.
+- **Self-healing.** Failed services retry every minute and recreate their counter if it disappears, without affecting the others.
+- **Small and safe.** A static, distroless, non-root image with no ports, and connection strings are kept out of logs.
 
-Successor to the `*-keepalive` family: one binary, one image, five datastore adapters. Valkey and other Redis-compatible stores use the `redis` adapter.
+Works with Redis Cloud, Upstash, Aiven (PostgreSQL, MySQL, Valkey), Supabase, YugabyteDB, CockroachDB, MongoDB Atlas, Couchbase Capella, and any self-hosted Redis-, Valkey-, PostgreSQL-, MySQL-, MongoDB-, or Couchbase-compatible server.
 
-## Configuration
+## Quick start
 
-By default, keepalive reads the first config file it finds: `config.yml`, `config.yaml`, `/config.yml`, then `/config.yaml`. One deployment can keep any number of services alive.
+Write a `config.yml`:
 
 ```yaml
-# Default interval for every service.
-interval: 1m
-counter_key: counter
+interval: 1h
 
 services:
-  - adapter: redis
-    config:
-      url: redis://default@redis-a.example.com:6379
-      namespace: keepalive
-
-  # Valkey, Dragonfly, KeyDB and other Redis-compatible stores use the redis
-  # adapter with a redis:// or rediss:// (TLS) URL.
-  - name: valkey-a
+  - name: upstash
     adapter: redis
-    # One service can override the global interval and counter key.
-    interval: 30s
-    counter_key: valkey-counter
     config:
-      url: rediss://default@valkey-a.example.com:6379
-      namespace: keepalive
+      url: rediss://default:PASSWORD@example.upstash.io:6379
 
-  - adapter: postgresql
+  - name: supabase
+    adapter: postgresql
     config:
-      url: postgresql://user:pass@postgres-a.example.com:5432/keepalive?sslmode=require
+      url: postgresql://USER:PASSWORD@aws-0-region.pooler.supabase.com:5432/postgres?sslmode=require
 
-  - adapter: mysql
+  - name: atlas
+    adapter: mongodb
     config:
-      dsn: user:pass@tcp(mysql-a.example.com:3306)/keepalive
-
-  - adapter: mongodb
-    config:
-      uri: mongodb+srv://user:pass@mongo-a.example.com
+      uri: mongodb+srv://USER:PASSWORD@cluster0.example.mongodb.net
       database: keepalive
       collection: counter
-
-  - adapter: couchbase
-    config:
-      connection_string: couchbases://couchbase-a.example.com
-      username: user
-      password: pass
-      bucket_name: keepalive
-      scope_name: _default
-      collection_name: _default
 ```
 
-`name` is optional. When omitted, keepalive generates a name from `adapter` and the connection host, such as `redis-redis-a-example-com`. Duplicate generated names get the first free suffix, like `redis-redis-a-example-com-2`.
-
-`interval` at the root sets the default schedule for every service and defaults to `1m`.
-`interval` inside a service overrides that default only for that service.
-In the example above, every service runs every `1m` except `valkey-a`, which runs every `30s`.
-Interval values use Go duration syntax, for example `30s`, `5m`, `1h`, `1h30m`, or `1.5h`. Plain integers are treated as seconds, so `90` means `90s`.
-
-`counter_key` at the root sets the default counter key for every service and defaults to `counter`.
-`counter_key` inside a service overrides that default only for that service.
-In the example above, every service writes `counter` except `valkey-a`, which writes `keepalive:valkey-counter`.
-
-## Supported adapters
-
-| `adapter`    | Driver                              | `config` keys |
-| ------------ | ----------------------------------- | ------------- |
-| `redis`      | `github.com/redis/go-redis/v9`      | `url` (`redis://` or `rediss://`), optional `namespace` |
-| `postgresql` | `github.com/lib/pq`                 | `url` |
-| `mysql`      | `github.com/go-sql-driver/mysql`    | `dsn` |
-| `mongodb`    | `go.mongodb.org/mongo-driver/v2`    | `uri`, `database`, `collection` |
-| `couchbase`  | `github.com/couchbase/gocb/v2`      | `connection_string`, `username`, `password`, `bucket_name`, `scope_name`, `collection_name`, optional `ready_timeout`, optional `bucket_ram_quota_mb` |
-
-## Quick start (Compose)
+Run it:
 
 ```bash
-cp config.example.yml config.yml
+git clone https://github.com/tiennm99/keepalive && cd keepalive
+# put your config.yml here (see config.example.yml for every adapter)
 docker compose up -d --build
+docker compose logs -f
 ```
 
-`compose.yml` also deploys on Coolify with the Docker Compose build pack (compose file `/compose.yml`). Coolify turns the `./config.yml` bind mount into an editable file storage; paste your config there. keepalive is a background worker with no port, so leave the service without a domain. Keep the real `config.yml` out of git, since it holds datastore credentials. Create `config.yml` before the first start: if the file is missing, Docker mounts an empty directory in its place and keepalive exits with an error. The container runs as user `65532`, so the file must be readable by that user (for example mode `0644`).
+Each service logs a line like `[upstash] counter: 42` on every tick.
 
-## Quick start (Docker)
+## Adapters
 
-```bash
-docker build -t keepalive:local .
-docker run -d --name keepalive --restart unless-stopped \
-  -v "$PWD/config.yml:/config.yml:ro" \
-  keepalive:local
-```
+| `adapter`                 | Use it for                                                        |
+| ------------------------- | ----------------------------------------------------------------- |
+| `redis`                   | Redis, Valkey, Dragonfly, KeyDB, Garnet, Upstash, Redis Cloud      |
+| `postgresql` / `postgres` | PostgreSQL, Supabase, Aiven, YugabyteDB, CockroachDB               |
+| `mysql`                   | MySQL, MariaDB, Aiven for MySQL, TiDB                              |
+| `mongodb` / `mongo`       | MongoDB Atlas, Azure DocumentDB, FerretDB, Cosmos DB for MongoDB   |
+| `couchbase`               | Couchbase Capella and self-hosted Couchbase                        |
 
-If you prefer to mount the config into a working directory instead of the container root, set the container working directory and mount the file there:
+## Documentation
 
-```bash
-docker run -d --name keepalive --restart unless-stopped \
-  --workdir /workspace \
-  -v "$PWD/config.yml:/workspace/config.yml:ro" \
-  keepalive:local
-```
-
-## Quick start (local)
-
-```bash
-git clone https://github.com/tiennm99/keepalive
-cd keepalive
-cp config.example.yml config.yml
-go run .
-```
-
-## How it works
-
-On startup each adapter initializes the minimum resource it owns, then every tick performs the cheapest write that proves the cluster is alive. `counter_key` selects the key/doc ID and defaults to `counter`.
-
-- **Redis** (also Valkey, Dragonfly, KeyDB, Garnet, Upstash) — initialize with `SETNX key 0`, then `INCR key`. When `namespace` is empty, the key is `counter`; when `namespace: keepalive`, the key is `keepalive:counter`.
-- **PostgreSQL** — `CREATE TABLE IF NOT EXISTS keepalive`, seed `key`, then `UPDATE ... RETURNING`
-- **MySQL** — `CREATE TABLE IF NOT EXISTS keepalive`, seed `key`, then `UPDATE` + `SELECT`
-- **MongoDB** — upsert `{_id: key, count: 0}` on connect, then `FindOneAndUpdate({_id: key}, {$inc: {count: 1}}, upsert)`
-- **Couchbase** — optionally create the bucket when `bucket_ram_quota_mb` is set, create configured scope/collection when missing, insert `key = 0` if missing, then an atomic binary `INCREMENT key`
-
-Each configured service starts independently and writes once right after connecting, then once per `interval`. A connect attempt, including initialization, gives up after 1 minute; PostgreSQL URLs without `connect_timeout` get `connect_timeout=30`. When a connect or a tick fails, the service logs the error, closes its connection, and reconnects after 1 minute, which also re-runs initialization (for example, recreating a dropped table). Other services in the same deployment keep running. An unknown `adapter`, a missing required `config` key, or `counter_key` placed inside `config` stops keepalive at startup. Unknown keys elsewhere in the file, such as a misspelled `interval`, only log a warning.
-
-For hosted Couchbase/Capella clusters, `ready_timeout` defaults to `30s`. If Couchbase reports `CONNECTION_ERROR`, check the connection string, bucket name, database user permissions, and Capella allowed IP/network access.
-
-## Adding a new adapter
-
-1. Create `adapter/<name>.go`.
-2. Implement the `Adapter` interface in `adapter/adapter.go` (`Connect`, `Increment`, `Close`).
-3. Register the factory in `init()`:
-   ```go
-   func init() { Registry["<name>"] = func(cfg Config) (Adapter, error) { return &myAdapter{}, nil } }
-   ```
-4. Add an `import _ "your driver"` if needed, and the adapter config keys to `config.example.yml` and the table above.
-
-## Migrated from
-
-This repo replaces six single-datastore repos (`redis-keepalive`, `valkey-keepalive`,
-`postgresql-keepalive`, `mysql-keepalive`, `mongodb-keepalive`, `couchbase-keepalive`).
-Their full histories were absorbed into this repository — browse earlier commits to find
-each implementation under its own subfolder (`redis/`, `valkey/`, `postgresql/`, `mysql/`,
-`mongodb/`, `couchbase/`).
+- [Configuration](docs/configuration.md): every option, per-adapter keys, and validation rules.
+- [Deployment](docs/deployment.md): Docker Compose, Coolify, plain Docker, and running from source.
+- [How it works](docs/how-it-works.md): what each adapter writes, retries, timeouts, and shutdown.
+- [Known issues](docs/known-issues.md): permission errors and other setup problems, by log line.
+- [Adding an adapter](docs/adding-an-adapter.md): plug in a new datastore.
 
 ## License
 
-Apache-2.0 — see [LICENSE](LICENSE).
+Apache-2.0. See [LICENSE](LICENSE).
