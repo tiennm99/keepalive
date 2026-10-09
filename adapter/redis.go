@@ -7,7 +7,15 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+// discardRedisLogger silences go-redis's internal logger. It logs every
+// failed dial attempt (several per connect), while the runner already logs
+// the returned error once per retry.
+type discardRedisLogger struct{}
+
+func (discardRedisLogger) Printf(context.Context, string, ...interface{}) {}
+
 func init() {
+	redis.SetLogger(discardRedisLogger{})
 	Registry["redis"] = func(cfg Config) (Adapter, error) {
 		url, err := cfg.Required("url")
 		if err != nil {
