@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"gopkg.in/yaml.v3"
 )
 
 func TestNormalizeConfigGeneratesNamesFromAdapterAndHost(t *testing.T) {
@@ -265,13 +267,34 @@ func TestFirstExistingConfigFileRejectsDirectory(t *testing.T) {
 	}
 }
 
-func TestCheckUnknownFieldsReportsTypos(t *testing.T) {
-	err := checkUnknownFields([]byte("intervall: 1m\nservices:\n  - adapter: redis\n    couter_key: x\n    config:\n      url: redis://cache.example.com\n      anything: goes\n"))
-	if err == nil || !strings.Contains(err.Error(), "intervall") || !strings.Contains(err.Error(), "couter_key") {
-		t.Fatalf("err = %v, want both unknown keys reported", err)
+func TestSchemaWarningsReportsUnknownKeysEverywhere(t *testing.T) {
+	data := []byte("intervall: 1m\nservices:\n  - adapter: redis\n    couter_key: x\n    config:\n      url: redis://cache.example.com\n      namspace: keepalive\n  - adapter: postgres\n    config:\n      url: postgres://db.example.com/k\n")
+	var raw appConfig
+	if err := yaml.Unmarshal(data, &raw); err != nil {
+		t.Fatal(err)
 	}
-	if err := checkUnknownFields([]byte("interval: 1m\nservices:\n  - adapter: redis\n    config:\n      url: redis://cache.example.com\n")); err != nil {
-		t.Fatalf("valid config reported: %v", err)
+	got := strings.Join(schemaWarnings(data, raw), "\n")
+	for _, want := range []string{"intervall", "couter_key", `services[0].config: unknown key "namspace" for adapter redis`} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("warnings %q do not mention %q", got, want)
+		}
+	}
+	if strings.Contains(got, "services[1]") {
+		t.Fatalf("valid service reported: %q", got)
+	}
+}
+
+func TestSchemaWarningsAcceptsValidConfig(t *testing.T) {
+	data, err := os.ReadFile("config.example.yml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var raw appConfig
+	if err := yaml.Unmarshal(data, &raw); err != nil {
+		t.Fatal(err)
+	}
+	if got := schemaWarnings(data, raw); len(got) != 0 {
+		t.Fatalf("config.example.yml warnings: %q", got)
 	}
 }
 

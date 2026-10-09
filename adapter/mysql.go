@@ -9,6 +9,7 @@ import (
 )
 
 func init() {
+	ConfigKeys["mysql"] = []string{"dsn"}
 	Registry["mysql"] = func(cfg Config) (Adapter, error) {
 		dsn, err := cfg.Required("dsn")
 		if err != nil {

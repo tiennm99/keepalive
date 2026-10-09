@@ -8,6 +8,7 @@ import (
 )
 
 func init() {
+	ConfigKeys["couchbase"] = []string{"connection_string", "username", "password", "bucket_name", "scope_name", "collection_name", "ready_timeout", "bucket_ram_quota_mb"}
 	Registry["couchbase"] = func(cfg Config) (Adapter, error) {
 		conn, err := cfg.Required("connection_string")
 		if err != nil {
@@ -116,6 +117,12 @@ func (a *couchbaseAdapter) Increment(ctx context.Context) (int64, error) {
 		return 0, err
 	}
 	return int64(res.Content()), nil
+}
+
+// ConnectTimeout leaves room for ready_timeout, which bounds each of the
+// bucket, scope, collection and document setup steps, plus a margin.
+func (a *couchbaseAdapter) ConnectTimeout() time.Duration {
+	return a.readyTimeout + time.Minute
 }
 
 func (a *couchbaseAdapter) Close(_ context.Context) error {

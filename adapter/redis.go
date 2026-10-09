@@ -16,6 +16,7 @@ func (discardRedisLogger) Printf(context.Context, string, ...interface{}) {}
 
 func init() {
 	redis.SetLogger(discardRedisLogger{})
+	ConfigKeys["redis"] = []string{"url", "namespace"}
 	Registry["redis"] = func(cfg Config) (Adapter, error) {
 		url, err := cfg.Required("url")
 		if err != nil {

@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"maps"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -58,22 +60,48 @@ func loadConfigFile(path string) ([]serviceConfig, error) {
 	if err := yaml.Unmarshal(data, &raw); err != nil {
 		return nil, fmt.Errorf("parse config: %w", err)
 	}
-	if err := checkUnknownFields(data); err != nil {
-		log.Printf("warning: %s: %v; unknown keys are ignored", path, err)
+	for _, warning := range schemaWarnings(data, raw) {
+		log.Printf("warning: %s: %s; ignoring it", path, warning)
 	}
 	return normalizeConfig(raw)
 }
 
-// checkUnknownFields reports keys that appConfig does not define, such as a
-// misspelled interval. Keys under a service's config map are not checked.
-func checkUnknownFields(data []byte) error {
+// schemaWarnings lists every key the config schema does not define: keys
+// appConfig and serviceFileConfig lack (such as a misspelled interval), and
+// keys under a service's config map that its adapter does not read (such as
+// a misspelled namespace). Unknown keys are ignored, not fatal.
+func schemaWarnings(data []byte, raw appConfig) []string {
+	var warnings []string
+
 	decoder := yaml.NewDecoder(bytes.NewReader(data))
 	decoder.KnownFields(true)
-	var raw appConfig
-	if err := decoder.Decode(&raw); err != nil && !errors.Is(err, io.EOF) {
-		return err
+	var strict appConfig
+	if err := decoder.Decode(&strict); err != nil && !errors.Is(err, io.EOF) {
+		var typeErr *yaml.TypeError
+		if errors.As(err, &typeErr) {
+			warnings = append(warnings, typeErr.Errors...)
+		} else {
+			warnings = append(warnings, err.Error())
+		}
 	}
-	return nil
+
+	for i, service := range raw.Services {
+		adapterType := strings.TrimSpace(service.Adapter)
+		known, ok := adapter.ConfigKeys[adapterType]
+		if !ok {
+			// normalizeConfig rejects the unknown adapter itself.
+			continue
+		}
+		for _, key := range slices.Sorted(maps.Keys(service.Config)) {
+			if key == "counter_key" || slices.Contains(known, key) {
+				// normalizeConfig rejects config.counter_key with its own error.
+				continue
+			}
+			warnings = append(warnings, fmt.Sprintf("services[%d].config: unknown key %q for adapter %s (known: %s)",
+				i, key, adapterType, strings.Join(known, ", ")))
+		}
+	}
+	return warnings
 }
 
 func defaultConfigFile() (string, error) {

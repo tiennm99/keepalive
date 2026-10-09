@@ -3,12 +3,17 @@ package adapter
 import (
 	"context"
 	"database/sql"
+	"net/url"
 	"strings"
 
 	_ "github.com/lib/pq"
 )
 
+const defaultPostgresConnectTimeout = "30"
+
 func init() {
+	ConfigKeys["postgresql"] = []string{"url"}
+	ConfigKeys["postgres"] = ConfigKeys["postgresql"]
 	Registry["postgresql"] = func(cfg Config) (Adapter, error) {
 		url, err := cfg.Required("url")
 		if err != nil {
@@ -86,16 +91,27 @@ func (a *postgresAdapter) Close(_ context.Context) error {
 // withDefaultConnectTimeout adds connect_timeout when the DSN has none:
 // lib/pq honours the context only while dialing, so a server that accepts the
 // connection but never answers the startup handshake would hang forever.
+// Like lib/pq, it treats only postgres:// and postgresql:// strings as URLs
+// and everything else as a key=value DSN.
 func withDefaultConnectTimeout(dsn string) string {
-	if strings.Contains(dsn, "connect_timeout") {
-		return dsn
+	if strings.HasPrefix(dsn, "postgres://") || strings.HasPrefix(dsn, "postgresql://") {
+		u, err := url.Parse(dsn)
+		if err != nil {
+			// Connect reports the parse error.
+			return dsn
+		}
+		q := u.Query()
+		if q.Has("connect_timeout") {
+			return dsn
+		}
+		q.Set("connect_timeout", defaultPostgresConnectTimeout)
+		u.RawQuery = q.Encode()
+		return u.String()
 	}
-	switch {
-	case !strings.Contains(dsn, "://"):
-		return dsn + " connect_timeout=30"
-	case strings.Contains(dsn, "?"):
-		return dsn + "&connect_timeout=30"
-	default:
-		return dsn + "?connect_timeout=30"
+	for _, field := range strings.Fields(dsn) {
+		if strings.HasPrefix(field, "connect_timeout=") {
+			return dsn
+		}
 	}
+	return dsn + " connect_timeout=" + defaultPostgresConnectTimeout
 }

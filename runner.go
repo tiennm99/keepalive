@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -37,7 +38,7 @@ func runService(ctx context.Context, wg *sync.WaitGroup, config serviceConfig) {
 				return
 			}
 
-			connectCtx, cancel := context.WithTimeout(ctx, connectTimeout)
+			connectCtx, cancel := context.WithTimeout(ctx, connectTimeoutFor(a))
 			err = a.Connect(connectCtx)
 			cancel()
 			if err != nil {
@@ -101,6 +102,13 @@ func incrementOnce(ctx context.Context, svc runningService) error {
 	return nil
 }
 
+func connectTimeoutFor(a adapter.Adapter) time.Duration {
+	if t, ok := a.(adapter.ConnectTimeouter); ok && t.ConnectTimeout() > connectTimeout {
+		return t.ConnectTimeout()
+	}
+	return connectTimeout
+}
+
 func closeService(_ context.Context, name string, a adapter.Adapter) {
 	if a == nil {
 		return
@@ -112,20 +120,23 @@ func closeService(_ context.Context, name string, a adapter.Adapter) {
 	}
 }
 
-// redactURLError drops the raw URL from a *url.Error. Drivers return one when
-// a connection URL fails to parse, and its message repeats the URL, password
-// included.
+// redactURLError hides connection-string parse errors that quote part of
+// the string, password included: *url.Error repeats the whole URL, an escape
+// error quotes the bad escape, and lib/pq quotes the token after a stray space
+// in a key=value DSN.
 func redactURLError(err error) error {
-	var urlErr *url.Error
-	if !errors.As(err, &urlErr) {
-		return err
-	}
 	var escapeErr url.EscapeError
-	if errors.As(urlErr.Err, &escapeErr) {
-		// The message quotes the bad escape, which may be part of a password.
+	if errors.As(err, &escapeErr) {
 		return errors.New("invalid connection URL: invalid percent-escape; percent-encode special characters in the user name and password")
 	}
-	return fmt.Errorf("invalid connection URL: %w", urlErr.Err)
+	if strings.Contains(err.Error(), `missing "=" after`) {
+		return errors.New("invalid key=value DSN: quote values that contain spaces, like password='a b'")
+	}
+	var urlErr *url.Error
+	if errors.As(err, &urlErr) {
+		return fmt.Errorf("invalid connection URL: %w", urlErr.Err)
+	}
+	return err
 }
 
 func waitContext(ctx context.Context, d time.Duration) bool {

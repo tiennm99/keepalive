@@ -75,6 +75,17 @@ type Factory func(Config) (Adapter, error)
 
 var Registry = map[string]Factory{}
 
+// ConfigKeys lists the config keys each adapter reads, so the config loader
+// can warn about misspelled or unsupported keys. counter_key is set by the
+// loader and is not listed.
+var ConfigKeys = map[string][]string{}
+
+// ConnectTimeouter is implemented by adapters whose Connect may legitimately
+// need longer than the runner's default connect timeout.
+type ConnectTimeouter interface {
+	ConnectTimeout() time.Duration
+}
+
 func New(adapterType string, cfg Config) (Adapter, error) {
 	f, ok := Registry[adapterType]
 	if !ok {

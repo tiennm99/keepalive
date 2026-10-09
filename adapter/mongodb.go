@@ -9,6 +9,8 @@ import (
 )
 
 func init() {
+	ConfigKeys["mongodb"] = []string{"uri", "database", "collection"}
+	ConfigKeys["mongo"] = ConfigKeys["mongodb"]
 	Registry["mongodb"] = func(cfg Config) (Adapter, error) {
 		uri, err := cfg.Required("uri")
 		if err != nil {
@@ -46,7 +48,6 @@ func (a *mongoAdapter) Connect(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	a.client = client
 	a.coll = client.Database(a.dbName).Collection(a.collName)
 	if err := client.Ping(ctx, nil); err != nil {
 		client.Disconnect(ctx)
@@ -56,6 +57,8 @@ func (a *mongoAdapter) Connect(ctx context.Context) error {
 		client.Disconnect(ctx)
 		return err
 	}
+	// Set only on success so Close does not disconnect a failed client again.
+	a.client = client
 	return nil
 }
 

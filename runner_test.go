@@ -201,3 +201,73 @@ func TestRunServiceIncrementsRightAfterConnect(t *testing.T) {
 	cancel()
 	wg.Wait()
 }
+
+func TestRedactURLErrorHidesDriverParseErrors(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	for _, tc := range []struct{ adapterType, key, value string }{
+		{"mongodb", "uri", "mongodb://user:S3CR%zzpw@db.example.com"},
+		{"postgresql", "url", "host=db.example.com user=u password=abc S3CRETdef dbname=k"},
+	} {
+		cfg := adapter.Config{tc.key: tc.value, "database": "k", "collection": "c"}
+		a, err := adapter.New(tc.adapterType, cfg)
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = a.Connect(ctx)
+		a.Close(ctx)
+		if err == nil {
+			t.Fatalf("%s: want connect error", tc.adapterType)
+		}
+		if got := redactURLError(err).Error(); strings.Contains(got, "S3CR") {
+			t.Fatalf("%s: redacted error leaks password: %s", tc.adapterType, got)
+		}
+	}
+}
+
+func TestWaitShutdownGivesUpAfterTimeout(t *testing.T) {
+	var wg sync.WaitGroup
+	wg.Add(1)
+	defer wg.Done()
+	if waitShutdown(&wg, 10*time.Millisecond) {
+		t.Fatal("waitShutdown reported a clean stop while a service was still running")
+	}
+}
+
+func TestWaitShutdownReturnsWhenServicesStop(t *testing.T) {
+	var wg sync.WaitGroup
+	if !waitShutdown(&wg, time.Second) {
+		t.Fatal("waitShutdown timed out with no running services")
+	}
+}
+
+type slowConnectAdapter struct{ timeout time.Duration }
+
+func (a slowConnectAdapter) Connect(context.Context) error            { return nil }
+func (a slowConnectAdapter) Increment(context.Context) (int64, error) { return 0, nil }
+func (a slowConnectAdapter) Close(context.Context) error              { return nil }
+func (a slowConnectAdapter) ConnectTimeout() time.Duration            { return a.timeout }
+
+func TestConnectTimeoutForUsesLongerAdapterTimeout(t *testing.T) {
+	if got := connectTimeoutFor(slowConnectAdapter{timeout: 3 * time.Minute}); got != 3*time.Minute {
+		t.Fatalf("connectTimeoutFor = %s, want 3m", got)
+	}
+	if got := connectTimeoutFor(slowConnectAdapter{timeout: time.Second}); got != connectTimeout {
+		t.Fatalf("connectTimeoutFor = %s, want default %s", got, connectTimeout)
+	}
+}
+
+func TestFailedMongoConnectLeavesNothingToClose(t *testing.T) {
+	a, err := adapter.New("mongodb", adapter.Config{"uri": "mongodb://127.0.0.1:1/?serverSelectionTimeoutMS=200", "database": "k", "collection": "c"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if err := a.Connect(ctx); err == nil {
+		t.Fatal("want connect error")
+	}
+	if err := a.Close(ctx); err != nil {
+		t.Fatalf("Close after failed Connect = %v, want nil", err)
+	}
+}

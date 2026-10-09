@@ -61,23 +61,43 @@ func hostFromEndpoint(endpoint string) string {
 		return ""
 	}
 
+	// Never fall back to splitting arbitrary text: a malformed URL or a
+	// key=value DSN can carry a password, and the name is logged on every line.
 	if strings.Contains(endpoint, "://") {
 		if u, err := url.Parse(endpoint); err == nil {
-			if host := u.Hostname(); host != "" {
-				return host
-			}
+			return u.Hostname()
 		}
+		return ""
 	}
 
 	if host := hostFromMySQLDSN(endpoint); host != "" {
 		return host
 	}
 
-	host, _, err := net.SplitHostPort(endpoint)
-	if err == nil && host != "" {
-		return host
+	if strings.Contains(endpoint, "=") {
+		return hostFromKeyValueDSN(endpoint)
 	}
 
+	if strings.ContainsAny(endpoint, " \t@/") {
+		return ""
+	}
+	host, _, err := net.SplitHostPort(endpoint)
+	if err == nil {
+		return host
+	}
+	return ""
+}
+
+// hostFromKeyValueDSN reads host= from a PostgreSQL key=value DSN.
+func hostFromKeyValueDSN(dsn string) string {
+	for _, field := range strings.Fields(dsn) {
+		if value, ok := strings.CutPrefix(field, "host="); ok {
+			host := strings.Trim(value, "'")
+			// host may list several hosts; the first names the service.
+			host, _, _ = strings.Cut(host, ",")
+			return host
+		}
+	}
 	return ""
 }
 
