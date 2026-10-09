@@ -9,12 +9,16 @@ services:
       url: redis://default@redis-a.example.com:6379
       namespace: keepalive
 
-  - adapter: valkey
+  # Valkey, Dragonfly, KeyDB and other Redis-compatible stores use the redis
+  # adapter with a redis:// or rediss:// (TLS) URL.
+  - name: valkey-a
+    adapter: redis
     # Example: this service overrides root interval and counter_key.
     interval: 30s
     counter_key: valkey-counter
     config:
-      url: valkey://default@valkey-a.example.com:6379
+      url: rediss://default@valkey-a.example.com:6379
+      namespace: keepalive
 
   - adapter: postgresql
     config:

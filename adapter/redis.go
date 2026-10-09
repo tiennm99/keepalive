@@ -20,6 +20,8 @@ func init() {
 	}
 }
 
+// redisAdapter serves every RESP-compatible store: Redis, Valkey, Dragonfly,
+// KeyDB, Garnet and their hosted variants.
 type redisAdapter struct {
 	client *redis.Client
 	url    string
@@ -31,15 +33,16 @@ func (a *redisAdapter) Connect(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	a.client = redis.NewClient(opt)
-	if err := a.client.Ping(ctx).Err(); err != nil {
-		a.client.Close()
+	client := redis.NewClient(opt)
+	if err := client.Ping(ctx).Err(); err != nil {
+		client.Close()
 		return err
 	}
-	if err := a.client.SetNX(ctx, a.key, 0, 0).Err(); err != nil {
-		a.client.Close()
+	if err := client.SetNX(ctx, a.key, 0, 0).Err(); err != nil {
+		client.Close()
 		return err
 	}
+	a.client = client
 	return nil
 }
 
