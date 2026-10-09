@@ -196,3 +196,21 @@ func TestNormalizeConfigRejectsNonPositiveInterval(t *testing.T) {
 		t.Fatal("normalizeConfig returned nil error")
 	}
 }
+
+func TestNormalizeConfigRejectsUnknownAdapter(t *testing.T) {
+	_, err := normalizeConfig(appConfig{Services: []serviceFileConfig{
+		{Adapter: "valkey", Config: map[string]string{"url": "redis://cache.example.com:6379"}},
+	}})
+	if err == nil || !strings.Contains(err.Error(), "services[0]") || !strings.Contains(err.Error(), "unknown adapter") {
+		t.Fatalf("err = %v, want unknown adapter error for services[0]", err)
+	}
+}
+
+func TestNormalizeConfigRejectsMissingAdapterConfigKey(t *testing.T) {
+	_, err := normalizeConfig(appConfig{Services: []serviceFileConfig{
+		{Adapter: "mongodb", Config: map[string]string{"uri": "mongodb://db.example.com", "database": "keepalive"}},
+	}})
+	if err == nil || !strings.Contains(err.Error(), "collection") {
+		t.Fatalf("err = %v, want missing collection error", err)
+	}
+}

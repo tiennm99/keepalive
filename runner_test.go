@@ -3,6 +3,9 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
+	"net/url"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -34,9 +37,9 @@ func (a *retryConnectAdapter) Close(context.Context) error {
 }
 
 func TestRunServiceRetriesConnectFailure(t *testing.T) {
-	oldReconnectDelay := reconnectDelay
-	reconnectDelay = 10 * time.Millisecond
-	defer func() { reconnectDelay = oldReconnectDelay }()
+	oldRetryDelay := retryDelay
+	retryDelay = 10 * time.Millisecond
+	defer func() { retryDelay = oldRetryDelay }()
 
 	var connects atomic.Int32
 	connected := make(chan struct{})
@@ -77,5 +80,87 @@ func TestRunServiceRetriesConnectFailure(t *testing.T) {
 
 	if got := connects.Load(); got != 2 {
 		t.Fatalf("connect attempts = %d, want 2", got)
+	}
+}
+
+type failingIncrementAdapter struct {
+	connects *atomic.Int32
+	closes   *atomic.Int32
+}
+
+func (a *failingIncrementAdapter) Connect(context.Context) error {
+	a.connects.Add(1)
+	return nil
+}
+
+func (a *failingIncrementAdapter) Increment(context.Context) (int64, error) {
+	return 0, errors.New("relation \"keepalive\" does not exist")
+}
+
+func (a *failingIncrementAdapter) Close(context.Context) error {
+	a.closes.Add(1)
+	return nil
+}
+
+func TestRunServiceReconnectsAfterIncrementFailure(t *testing.T) {
+	oldRetryDelay := retryDelay
+	retryDelay = 10 * time.Millisecond
+	defer func() { retryDelay = oldRetryDelay }()
+
+	var connects, closes atomic.Int32
+	adapter.Registry["fail-tick-test"] = func(adapter.Config) (adapter.Adapter, error) {
+		return &failingIncrementAdapter{connects: &connects, closes: &closes}, nil
+	}
+	defer delete(adapter.Registry, "fail-tick-test")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	var wg sync.WaitGroup
+	runService(ctx, &wg, serviceConfig{
+		Name:        "fail-tick-test",
+		AdapterType: "fail-tick-test",
+		Interval:    5 * time.Millisecond,
+		Config:      adapter.Config{},
+	})
+
+	deadline := time.After(time.Second)
+	for connects.Load() < 3 {
+		select {
+		case <-deadline:
+			cancel()
+			t.Fatalf("connect attempts = %d, want at least 3", connects.Load())
+		case <-time.After(5 * time.Millisecond):
+		}
+	}
+	cancel()
+	wg.Wait()
+
+	if closes.Load() < connects.Load()-1 {
+		t.Fatalf("closes = %d for %d connects; each failed session must be closed", closes.Load(), connects.Load())
+	}
+}
+
+func TestRedactURLErrorHidesPassword(t *testing.T) {
+	for _, raw := range []string{
+		"postgres://user:S3CR%ETpw@db.example.com/keepalive",
+		"redis://user:S3CRETpw@cache.example.com:port/0",
+	} {
+		_, err := url.Parse(raw)
+		if err == nil {
+			t.Fatalf("%s: want parse error", raw)
+		}
+		got := redactURLError(fmt.Errorf("connect: %w", err)).Error()
+		if strings.Contains(got, "S3CR") {
+			t.Fatalf("redacted error leaks password: %s", got)
+		}
+		if !strings.Contains(got, "invalid connection URL") {
+			t.Fatalf("redacted error = %q, want a URL hint", got)
+		}
+	}
+}
+
+func TestRedactURLErrorKeepsOtherErrors(t *testing.T) {
+	err := errors.New("dial tcp: connection refused")
+	if got := redactURLError(err); got != err {
+		t.Fatalf("redactURLError changed a non-URL error: %v", got)
 	}
 }

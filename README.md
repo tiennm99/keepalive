@@ -4,7 +4,7 @@ Pluggable Go daemon that periodically touches external services to prevent idle 
 
 The current adapters perform cheap datastore writes for Redis Cloud, Valkey, Aiven, Neon, Supabase, MongoDB Atlas, Couchbase Capella, and similar hosted services.
 
-Successor to the `*-keepalive` family: one binary, one image, six datastore adapters.
+Successor to the `*-keepalive` family: one binary, one image, five datastore adapters. Valkey and other Redis-compatible stores use the `redis` adapter.
 
 ## Configuration
 
@@ -21,12 +21,16 @@ services:
       url: redis://default@redis-a.example.com:6379
       namespace: keepalive
 
-  - adapter: valkey
+  # Valkey, Dragonfly, KeyDB and other Redis-compatible stores use the redis
+  # adapter with a redis:// or rediss:// (TLS) URL.
+  - name: valkey-a
+    adapter: redis
     # One service can override the global interval and counter key.
     interval: 30s
     counter_key: valkey-counter
     config:
-      url: valkey://default@valkey-a.example.com:6379
+      url: rediss://default@valkey-a.example.com:6379
+      namespace: keepalive
 
   - adapter: postgresql
     config:
@@ -56,19 +60,18 @@ services:
 
 `interval` at the root sets the default schedule for every service and defaults to `1m`.
 `interval` inside a service overrides that default only for that service.
-In the example above, every service runs every `1m` except `valkey`, which runs every `30s`.
+In the example above, every service runs every `1m` except `valkey-a`, which runs every `30s`.
 Interval values use Go duration syntax, for example `30s`, `5m`, `1h`, `1h30m`, or `1.5h`. Plain integers are treated as seconds, so `90` means `90s`.
 
 `counter_key` at the root sets the default counter key for every service and defaults to `counter`.
 `counter_key` inside a service overrides that default only for that service.
-In the example above, every service writes `counter` except `valkey`, which writes `valkey-counter`.
+In the example above, every service writes `counter` except `valkey-a`, which writes `keepalive:valkey-counter`.
 
 ## Supported adapters
 
 | `adapter`    | Driver                              | `config` keys |
 | ------------ | ----------------------------------- | ------------- |
-| `redis`      | `github.com/redis/go-redis/v9`      | `url`, optional `namespace` |
-| `valkey`     | `github.com/valkey-io/valkey-go`    | `url` |
+| `redis`      | `github.com/redis/go-redis/v9`      | `url` (`redis://` or `rediss://`), optional `namespace` |
 | `postgresql` | `github.com/lib/pq`                 | `url` |
 | `mysql`      | `github.com/go-sql-driver/mysql`    | `dsn` |
 | `mongodb`    | `go.mongodb.org/mongo-driver/v2`    | `uri`, `database`, `collection` |
@@ -114,14 +117,13 @@ go run .
 
 On startup each adapter initializes the minimum resource it owns, then every tick performs the cheapest write that proves the cluster is alive. `counter_key` selects the key/doc ID and defaults to `counter`.
 
-- **Redis** — initialize with `SETNX key 0`, then `INCR key`. When `namespace` is empty, the key is `counter`; when `namespace: keepalive`, the key is `keepalive:counter`.
-- **Valkey** — initialize with `SETNX key 0`, then `INCR key`
+- **Redis** (also Valkey, Dragonfly, KeyDB, Garnet, Upstash) — initialize with `SETNX key 0`, then `INCR key`. When `namespace` is empty, the key is `counter`; when `namespace: keepalive`, the key is `keepalive:counter`.
 - **PostgreSQL** — `CREATE TABLE IF NOT EXISTS keepalive`, seed `key`, then `UPDATE ... RETURNING`
 - **MySQL** — `CREATE TABLE IF NOT EXISTS keepalive`, seed `key`, then `UPDATE` + `SELECT`
 - **MongoDB** — upsert `{_id: key, count: 0}` on connect, then `FindOneAndUpdate({_id: key}, {$inc: {count: 1}}, upsert)`
-- **Couchbase** — optionally create the bucket when `bucket_ram_quota_mb` is set, create configured scope/collection when missing, insert `key = 0` if missing, then `GET key` -> `++` -> `UPSERT key`
+- **Couchbase** — optionally create the bucket when `bucket_ram_quota_mb` is set, create configured scope/collection when missing, insert `key = 0` if missing, then an atomic binary `INCREMENT key`
 
-Each configured service starts independently. If one service cannot connect, it logs the error and retries without stopping other services in the same deployment.
+Each configured service starts independently. When a connect or a tick fails, the service logs the error, closes its connection, and reconnects after 1 minute, which also re-runs initialization (for example, recreating a dropped table). Other services in the same deployment keep running. An unknown `adapter` or a missing required `config` key stops keepalive at startup.
 
 For hosted Couchbase/Capella clusters, `ready_timeout` defaults to `30s`. If Couchbase reports `CONNECTION_ERROR`, check the connection string, bucket name, database user permissions, and Capella allowed IP/network access.
 

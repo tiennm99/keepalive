@@ -105,6 +105,12 @@ func normalizeConfig(raw appConfig) ([]serviceConfig, error) {
 		}
 		cfg["counter_key"] = valueOrDefault(rawService.CounterKey, globalCounterKey)
 
+		// Factories do no I/O, so building one here catches an unknown adapter
+		// or a missing config key at startup instead of silently idling.
+		if _, err := adapter.New(adapterType, cfg); err != nil {
+			return nil, fmt.Errorf("%s: %w", servicePath, err)
+		}
+
 		name, err := normalizeServiceName(rawService.Name, adapterType, cfg, usedNames, servicePath)
 		if err != nil {
 			return nil, err
